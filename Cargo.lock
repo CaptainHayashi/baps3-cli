@@ -1,0 +1,12 @@
+[root]
+name = "baps3-cli"
+version = "0.0.1"
+dependencies = [
+ "baps3_protocol 0.1.0 (git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git)",
+]
+
+[[package]]
+name = "baps3_protocol"
+version = "0.1.0"
+source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#604be0b42713c8793736e9d94994e95eab81b947"
+

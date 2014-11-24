@@ -1,0 +1,8 @@
+[package]
+
+name = "baps3-cli"
+version = "0.0.1"
+authors = ["Matt Windsor <matt.windsor@ury.org.uk>"]
+
+[dependencies.baps3_protocol]
+git = "https://github.com/UniversityRadioYork/baps3-protocol.rs.git"
