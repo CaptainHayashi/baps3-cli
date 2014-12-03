@@ -1,7 +1,10 @@
 #![feature(if_let)]
+#![feature(phase)]
 
 extern crate baps3_protocol;
 extern crate libc;
+extern crate docopt;
+#[phase(plugin)] extern crate docopt_macros;
 
 use baps3_protocol::Unpacker;
 use client::{Client, Request, Response};

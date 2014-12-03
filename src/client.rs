@@ -2,7 +2,6 @@
 #![experimental]
 
 use std::io::{
-    BufferedReader,
     IoError,
     IoErrorKind,
     IoResult,
@@ -51,9 +50,9 @@ impl Client {
         let (request_tx, request_rx) = channel();
         let (response_tx, response_rx) = channel();
 
-        let mut w_stream = stream.clone();
+        let w_stream = stream.clone();
         let w_resp_tx = response_tx.clone();
-        spawn(proc() { write_task(&mut w_stream, w_resp_tx, request_rx); });
+        spawn(proc() { write_task(w_stream, w_resp_tx, request_rx); });
 
         let r_stream = stream.clone();
         spawn(proc() { read_task(r_stream, response_tx); });
@@ -68,32 +67,41 @@ impl Client {
 /// The body of the task responsible for reading responses from the client.
 fn read_task(stream: TcpStream, tx: Sender<Response>) {
     let mut u = Unpacker::new();
-    let mut reader = BufferedReader::new(stream);
+    let mut strm = stream;
 
-    for line in reader.lines() {
-        match line {
-            Ok(s) => for pline in u.feed(s.as_slice()).iter() {
+    'l: loop {
+        // We ignore any send errors, because the response channel is liable to
+        // be closed by the client when it gets sick of hearing us.
+
+        match strm.read_byte() {
+            Ok(b) => for pline in u.feed_bytes(&mut(Some(b).into_iter())).iter() {
                 if let [ref cmd, args..] = pline.as_slice() {
-                    tx.send(Response::Message(cmd.clone(), args.to_vec()));
+                    if let Err(_) = tx.send_opt(
+                        Response::Message(cmd.clone(), args.to_vec())
+                    ) {
+                        break 'l;
+                    }
                 }
             },
             Err(ref e) if e.kind == IoErrorKind::EndOfFile => {
-                tx.send(Response::Gone);
-                return;
+                let _ = tx.send_opt(Response::Gone);
+                break 'l;
             },
             Err(e) => {
-                tx.send(Response::ClientError(e));
-                return;
+                let _ = tx.send_opt(Response::ClientError(e));
+                break 'l;
             },
         }
     }
 }
 
 /// The body of the task responsible for writing requests to the client.
-fn write_task(stream: &mut TcpStream,
+fn write_task(stream: TcpStream,
               tx: Sender<Response>,
               rx: Receiver<Request>) {
-    for r in rx.iter() {
+    let mut strm = stream;
+
+    'l: for r in rx.iter() {
         match r {
             Request::SendMessage(cmd, args) => {
                 let sargs = args.iter()
@@ -101,21 +109,19 @@ fn write_task(stream: &mut TcpStream,
                                 .collect::<Vec<&str>>();
                 let packed = pack(cmd.as_slice(), sargs.as_slice());
 
-                if let Err(e) = stream.write_line(packed.as_slice()) {
+                if let Err(e) = strm.write_line(packed.as_slice()) {
                     tx.send(Response::ClientError(e));
-
-                    if let Err(ce) = stream.close_read() {
-                        println!("Error closing stream: {}", ce);
-                    }
-                    return;
+                    break 'l;
                 }
             },
-            Request::Quit => {
-                if let Err(ce) = stream.close_read() {
-                    println!("Error closing stream: {}", ce);
-                }
-                return;
-            }
+            Request::Quit => break 'l
         }
+    }
+
+    if let Err(ce) = strm.close_read() {
+        println!("Error closing stream: {}", ce);
+    }
+    if let Err(ce) = strm.close_write() {
+        println!("Error closing stream: {}", ce);
     }
 }
