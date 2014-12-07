@@ -81,6 +81,7 @@ fn check_baps3(log: &mut Logger, Client{request_tx, response_rx}: Client)
 }
 
 fn check_features(log: &mut Logger,
+                  needed: &[&str],
                   Client{request_tx, response_rx}: Client)
   -> IoResult<Client> {
     'l: loop {
@@ -89,6 +90,19 @@ fn check_features(log: &mut Logger,
                 match &*slicify_msg(&code, &msg) {
                     ["FEATURES", fs..] => {
                         log!(log, "Server features: {}", fs);
+
+                        for n in needed.iter() {
+                            if !fs.contains(n) {
+                                return Err(std::io::IoError {
+                                    kind: std::io::IoErrorKind::OtherIoError,
+                                    desc: "insufficient features",
+                                    detail: Some(format!("have: {} want: {}",
+                                                         fs,
+                                                         needed))
+                                })
+                            }
+                        }
+
                         break 'l;
                     }
                     _ => return Err(std::io::IoError {
@@ -165,20 +179,46 @@ fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
     Ok(())
 }
 
+/// A one-shot BAPS3 request.
+///
+/// This takes a server connection and performs the following:
+///   - Checks that the server is a BAPS3 server, by seeing if an OHAI line is
+///     being received;
+///   - Checks the server's FEATURES flags against `features`, and fails if
+///     any are missing;
+///   - Sends the command `word` `args`;
+///   - Reads until the server sends an OKAY, FAIL, or WHAT response for that
+///     command.
+fn one_shot(log: &mut Logger,
+            client: Client,
+            features: &[&str],
+            word: &str,
+            args: &[&str])
+  -> IoResult<()> {
+    check_baps3(log, client)
+      .and_then(|c| check_features(log, features, c))
+      .and_then(|c| send_command(log, c, word, args))
+      .and_then(|c| quit_client(log, c))
+}
+
+/// Creates a Logger from the -v/--verbose flag of a command.
+///
+/// If verbose is on (-v/--verbose == true), we dump log messages to stderr,
+/// else we ignore them.
+fn verbose_logger<'a>(verbose: bool) -> Logger<'a> {
+    if verbose { |s: &str| { let _ = std::io::stderr().write_line(s); } }
+    else       { |_| {} }
+}
+
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+    let mut log = verbose_logger(args.flag_verbose);
 
-    let mut log: Logger = if args.flag_verbose {
-        |s: &str| { let _ = std::io::stderr().write_line(s); }
-    } else {
-        |_| {}
-    };
-
-    Client
-     ::new(&*args.flag_target)
-      .and_then(|c| check_baps3(&mut log, c))
-      .and_then(|c| check_features(&mut log, c))
-      .and_then(|c| send_command(&mut log, c, "load", &[&*args.arg_file]))
-      .and_then(|c| quit_client(&mut log, c))
+    Client::new(&*args.flag_target)
+      .and_then(|c| one_shot(&mut log,
+                             c,
+                             &["FileLoad"],
+                             "load",
+                             &[&*args.arg_file]))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }
