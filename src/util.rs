@@ -1,3 +1,5 @@
+#![macro_escape]
+
 #[macro_export]
 macro_rules! werr(
     ($($arg:tt)*) => (
