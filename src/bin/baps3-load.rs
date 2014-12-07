@@ -1,5 +1,7 @@
 #![feature(if_let)]
 #![feature(phase)]
+#![feature(unboxed_closures)]
+#![feature(macro_rules)]
 
 extern crate baps3_protocol;
 #[phase(plugin)] extern crate baps3_cli;
@@ -40,16 +42,21 @@ pub fn slicify_msg<'a>(code: &'a String,
     v
 }
 
-fn check_baps3(verbose: bool, Client{request_tx, response_rx}: Client)
+type Logger<'a> = |&str|:'a;
+macro_rules! log(
+    ($l:ident, $($arg:tt)*) => (
+        let _ = (*$l)(&*format!($($arg)*));
+    )
+)
+
+fn check_baps3(log: &mut Logger, Client{request_tx, response_rx}: Client)
   -> IoResult<Client> {
     'l: loop {
         match response_rx.recv_opt() {
             Ok(Response::Message(code, msg)) => {
                 match &*slicify_msg(&code, &msg) {
                     ["OHAI", ident] => {
-                        if verbose {
-                            println!("Server ident: {}", ident);
-                        }
+                        log!(log, "Server ident: {}", ident);
                         break 'l;
                     }
                     _ => return Err(std::io::IoError {
@@ -73,16 +80,15 @@ fn check_baps3(verbose: bool, Client{request_tx, response_rx}: Client)
     })
 }
 
-fn check_features(verbose: bool, Client{request_tx, response_rx}: Client)
+fn check_features(log: &mut Logger,
+                  Client{request_tx, response_rx}: Client)
   -> IoResult<Client> {
     'l: loop {
         match response_rx.recv_opt() {
             Ok(Response::Message(code, msg)) => {
                 match &*slicify_msg(&code, &msg) {
                     ["FEATURES", fs..] => {
-                        if verbose {
-                            println!("Server features: {}", fs);
-                        }
+                        log!(log, "Server features: {}", fs);
                         break 'l;
                     }
                     _ => return Err(std::io::IoError {
@@ -106,12 +112,10 @@ fn check_features(verbose: bool, Client{request_tx, response_rx}: Client)
     })
 }
 
-fn send_command(verbose: bool,
+fn send_command(log: &mut Logger,
                 Client{request_tx, response_rx}: Client,
                 word: &str, args: &[&str]) -> IoResult<Client> {
-    if verbose {
-        println!("Sending command: {} {}", word, args);
-    }
+    log!(log, "Sending command: {} {}", word, args);
 
     let oword = word.into_string();
     let oargs = args.iter().map(|arg| arg.into_string()).collect();
@@ -123,9 +127,7 @@ fn send_command(verbose: bool,
                 match &*slicify_msg(&code, &msg) {
                     ["OKAY", cword, cargs..]
                       if cword == word && cargs == args => {
-                        if verbose {
-                            println!("success!");
-                        }
+                        log!(log, "success!");
                         break 'l;
                     },
                     ["WHAT", advice, cword, cargs..]
@@ -155,10 +157,9 @@ fn send_command(verbose: bool,
     })
 }
 
-fn quit_client(verbose: bool, Client{request_tx, ..}: Client) -> IoResult<()> {
-    if verbose {
-        println!("Closing client connection");
-    }
+fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
+  -> IoResult<()> {
+    log!(log, "Closing client connection");
 
     request_tx.send(Request::Quit);
     Ok(())
@@ -167,13 +168,17 @@ fn quit_client(verbose: bool, Client{request_tx, ..}: Client) -> IoResult<()> {
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
 
-    let verbose = args.flag_verbose;
+    let mut log: Logger = if args.flag_verbose {
+        |s: &str| { let _ = std::io::stderr().write_line(s); }
+    } else {
+        |_| {}
+    };
 
     Client
      ::new(&*args.flag_target)
-      .and_then(|c| check_baps3(verbose, c))
-      .and_then(|c| check_features(verbose, c))
-      .and_then(|c| send_command(verbose, c, "load", &[&*args.arg_file]))
-      .and_then(|c| quit_client(verbose, c))
+      .and_then(|c| check_baps3(&mut log, c))
+      .and_then(|c| check_features(&mut log, c))
+      .and_then(|c| send_command(&mut log, c, "load", &[&*args.arg_file]))
+      .and_then(|c| quit_client(&mut log, c))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }
