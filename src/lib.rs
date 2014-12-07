@@ -28,6 +28,7 @@ pub fn slicify_msg<'a>(code: &'a String,
 }
 
 pub type Logger<'a> = |&str|:'a;
+#[macro_export]
 macro_rules! log(
     ($l:ident, $($arg:tt)*) => (
         let _ = (*$l)(&*format!($($arg)*));
