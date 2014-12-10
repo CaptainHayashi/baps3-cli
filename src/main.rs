@@ -1,4 +1,3 @@
-#![feature(if_let)]
 #![feature(phase)]
 
 extern crate baps3_protocol;
@@ -50,7 +49,7 @@ fn stdin_loop(
 ) {
     let mut u = Unpacker::new();
 
-    for line in std::io::stdin().lines() {
+    for line in std::io::stdin().lock().lines() {
         match line {
             Ok(l) => send_message(&request_tx, &mut u, l.as_slice()),
             Err(e) => {

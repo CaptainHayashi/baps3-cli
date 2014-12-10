@@ -1,4 +1,3 @@
-#![feature(if_let)]
 #![feature(phase)]
 #![feature(macro_rules)]
 #![feature(unboxed_closures)]
