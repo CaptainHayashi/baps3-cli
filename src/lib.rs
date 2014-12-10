@@ -126,7 +126,7 @@ pub fn send_command(log: &mut Logger,
         match response_rx.recv_opt() {
             Ok(Response::Message(code, msg)) => {
                 match &*slicify_msg(&code, &msg) {
-                    ["OKAY", cword, cargs..]
+                    ["OK", cword, cargs..]
                       if cword == word && cargs == args => {
                         log!(log, "success!");
                         break 'l;
