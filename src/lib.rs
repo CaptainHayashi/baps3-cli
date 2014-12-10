@@ -6,25 +6,12 @@ extern crate baps3_protocol;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
-use std::io::IoResult;
+use std::error::{Error, FromError};
 use client::{Client, Request, Response};
+use util::{slicify, unslicify};
 
 pub mod client;
 pub mod util;
-
-/// Creates a vector of string-slices from a vector of strings.
-///
-/// The slice vector lives as long as the original vector.
-pub fn slicify<'a>(vec: &'a Vec<String>) -> Vec<&'a str> {
-    vec.iter().map(|x| x.as_slice()).collect::<Vec<&str>>()
-}
-
-pub fn slicify_msg<'a>(code: &'a String,
-                       vec: &'a Vec<String>) -> Vec<&'a str> {
-    let mut v = slicify(vec);
-    v.insert(0, &**code);
-    v
-}
 
 pub type Logger<'a> = |&str|:'a;
 #[macro_export]
@@ -34,29 +21,73 @@ macro_rules! log(
     )
 )
 
+/// Error type for high-level BAPS3 client errors.
+pub enum Baps3Error {
+    /// The server hung up while we were waiting for it to tell us something.
+    HungUp,
+
+    /// The server did not have the appropriate feature set.
+    MissingFeatures { wanted: Vec<String>, have: Vec<String> },
+
+    /// The server is not actually speaking the BAPS3 protocol.
+    NotBaps3Server,
+
+    /// We received a response from the server we weren't expecting.
+    UnexpectedResponse { code: String, args: Vec<String>, expectation: String }
+}
+
+fn baps3_err_desc(err: &Baps3Error) -> &'static str {
+    match *err {
+        Baps3Error::HungUp                    => "server hung up",
+        Baps3Error::MissingFeatures    { .. } => "server missing features",
+        Baps3Error::NotBaps3Server            => "not a BAPS3 server",
+        Baps3Error::UnexpectedResponse { .. } => "unexpected response"
+    }
+}
+
+impl Error for Baps3Error {
+    fn description(&self) -> &str {
+        baps3_err_desc(self)
+    }
+
+    fn detail(&self) -> Option<String> {
+        match *self {
+            Baps3Error::MissingFeatures { wanted: ref w, have: ref h }
+                => Some(format!("wanted: {}, have: {}", w, h)),
+            Baps3Error::UnexpectedResponse { code: ref c,
+                                             args: ref a,
+                                             expectation: ref e }
+                => Some(format!("code: {}, args: {}; expected {}", c, a, e)),
+            _ => None
+        }
+    }
+}
+impl FromError<Baps3Error> for std::io::IoError {
+    fn from_error(err: Baps3Error) -> std::io::IoError {
+        std::io::IoError {
+            kind: std::io::IoErrorKind::OtherIoError,
+            desc: baps3_err_desc(&err),
+            detail: err.detail()
+        }
+    }
+}
+pub type Baps3Result<A> = Result<A, Baps3Error>;
+
 pub fn check_baps3(log: &mut Logger,
                    Client{request_tx, response_rx}: Client)
-  -> IoResult<Client> {
+  -> Baps3Result<Client> {
     'l: loop {
         match response_rx.recv_opt() {
             Ok(Response::Message(code, msg)) => {
-                match &*slicify_msg(&code, &msg) {
-                    ["OHAI", ident] => {
+                match (&*code, &*slicify(&msg)) {
+                    ("OHAI", [ident]) => {
                         log!(log, "Server ident: {}", ident);
                         break 'l;
                     }
-                    _ => return Err(std::io::IoError {
-                        kind: std::io::IoErrorKind::OtherIoError,
-                        desc: "not a BAPS3 server",
-                        detail: None
-                    })
+                    _ => return Err(Baps3Error::NotBaps3Server)
                 }
             },
-            _ => return Err(std::io::IoError {
-                kind: std::io::IoErrorKind::OtherIoError,
-                desc: "unexpected response",
-                detail: None
-            })
+            _ => return Err(Baps3Error::HungUp)
         }
     }
 
@@ -69,40 +100,33 @@ pub fn check_baps3(log: &mut Logger,
 pub fn check_features(log: &mut Logger,
                       needed: &[&str],
                       Client{request_tx, response_rx}: Client)
-  -> IoResult<Client> {
+  -> Baps3Result<Client> {
     'l: loop {
         match response_rx.recv_opt() {
             Ok(Response::Message(code, msg)) => {
-                match &*slicify_msg(&code, &msg) {
-                    ["FEATURES", fs..] => {
-                        log!(log, "Server features: {}", fs);
+                match (&*code, &*slicify(&msg)) {
+                    ("FEATURES", have) => {
+                        log!(log, "Server features: {}", have);
 
                         for n in needed.iter() {
-                            if !fs.contains(n) {
-                                return Err(std::io::IoError {
-                                    kind: std::io::IoErrorKind::OtherIoError,
-                                    desc: "insufficient features",
-                                    detail: Some(format!("have: {} want: {}",
-                                                         fs,
-                                                         needed))
+                            if !have.contains(n) {
+                                return Err(Baps3Error::MissingFeatures {
+                                    wanted: unslicify(needed),
+                                    have: unslicify(have)
                                 })
                             }
                         }
 
                         break 'l;
                     }
-                    _ => return Err(std::io::IoError {
-                        kind: std::io::IoErrorKind::OtherIoError,
-                        desc: "expected FEATURES here",
-                        detail: None
+                    (c, a) => return Err(Baps3Error::UnexpectedResponse {
+                        code: c.into_string(),
+                        args: unslicify(a),
+                        expectation: "FEATURES".into_string()
                     })
                 }
             },
-            _ => return Err(std::io::IoError {
-                kind: std::io::IoErrorKind::OtherIoError,
-                desc: "unexpected response",
-                detail: None
-            })
+            _ => return Err(Baps3Error::HungUp)
         }
     }
 
@@ -115,7 +139,7 @@ pub fn check_features(log: &mut Logger,
 pub fn send_command(log: &mut Logger,
                     Client{request_tx, response_rx}: Client,
                     word: &str, args: &[&str])
-  -> IoResult<Client> {
+  -> Baps3Result<Client> {
     log!(log, "Sending command: {} {}", word, args);
 
     let oword = word.into_string();
@@ -125,18 +149,18 @@ pub fn send_command(log: &mut Logger,
     'l: loop {
         match response_rx.recv_opt() {
             Ok(Response::Message(code, msg)) => {
-                match &*slicify_msg(&code, &msg) {
-                    ["OK", cword, cargs..]
+                match (&*code, &*slicify(&msg)) {
+                    ("OK", [cword, cargs..])
                       if cword == word && cargs == args => {
                         log!(log, "success!");
                         break 'l;
                     },
-                    ["WHAT", advice, cword, cargs..]
+                    ("WHAT", [advice, cword, cargs..])
                       if cword == word && cargs == args => {
                         werr!("command invalid: {}", advice);
                         break 'l;
                     },
-                    ["FAIL", advice, cword, cargs..]
+                    ("FAIL", [advice, cword, cargs..])
                       if cword == word && cargs == args => {
                         werr!("command failed: {}", advice);
                         break 'l;
@@ -144,11 +168,7 @@ pub fn send_command(log: &mut Logger,
                     _ => ()
                 }
             },
-            _ => return Err(std::io::IoError {
-                kind: std::io::IoErrorKind::OtherIoError,
-                desc: "unexpected response",
-                detail: None
-            })
+            _ => return Err(Baps3Error::HungUp)
         }
     }
 
@@ -159,7 +179,7 @@ pub fn send_command(log: &mut Logger,
 }
 
 pub fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
-  -> IoResult<()> {
+  -> Baps3Result<()> {
     log!(log, "Closing client connection");
 
     request_tx.send(Request::Quit);
@@ -176,16 +196,17 @@ pub fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
 ///   - Sends the command `word` `args`;
 ///   - Reads until the server sends an OKAY, FAIL, or WHAT response for that
 ///     command.
-pub fn one_shot(log: &mut Logger,
-            client: Client,
-            features: &[&str],
-            word: &str,
-            args: &[&str])
-  -> IoResult<()> {
+pub fn one_shot<E: FromError<Baps3Error>>(log: &mut Logger,
+                                          client: Client,
+                                          features: &[&str],
+                                          word: &str,
+                                          args: &[&str])
+  -> Result<(), E> {
     check_baps3(log, client)
       .and_then(|c| check_features(log, features, c))
       .and_then(|c| send_command(log, c, word, args))
       .and_then(|c| quit_client(log, c))
+      .or_else(|e| Err(FromError::from_error(e)))
 }
 
 /// Creates a Logger from the -v/--verbose flag of a command.
