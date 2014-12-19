@@ -10,34 +10,7 @@ use std::io::{
 use std::io::net::ip::ToSocketAddr;
 
 use baps3_protocol::{pack, Unpacker};
-use util::{slicify, unslicify};
-
-/// A structure for BAPS3 protocol messages.
-pub struct Message {
-    _word: String,
-    _args: Vec<String>
-}
-impl Message {
-    pub fn new<Sized? W: Str, Sized? A: Str+Sized>(word: &W, args: &[A])
-      -> Message {
-        Message { _word: word.as_slice().to_string(),
-                  _args: unslicify(args) }
-    }
-
-    pub fn word<'a>(&'a self) -> &'a str {
-        self._word.as_slice()
-    }
-
-    pub fn args<'a>(&'a self) -> Vec<&'a str> {
-        slicify(&self._args)
-    }
-
-    pub fn as_str_vec<'a>(&'a self) -> Vec<&'a str> {
-        let mut v = self.args();
-        v.insert(0, self.word());
-        v
-    }
-}
+use message::Message;
 
 /// A BAPS3 protocol client.
 pub struct Client {

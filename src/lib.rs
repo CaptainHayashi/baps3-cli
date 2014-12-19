@@ -7,10 +7,12 @@ extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use std::error::{Error, FromError};
-use client::{Client, Message, Request, Response};
+use client::{Client, Request, Response};
+use message::Message;
 use util::unslicify;
 
 pub mod client;
+pub mod message;
 pub mod util;
 
 pub type Logger<'a> = |&str|:'a;

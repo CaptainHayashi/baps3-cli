@@ -7,7 +7,8 @@ extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use baps3_protocol::Unpacker;
-use baps3_cli::client::{Client, Message, Request, Response};
+use baps3_cli::client::{Client, Request, Response};
+use baps3_cli::message::Message;
 
 fn main() {
     let (int_request_tx, int_request_rx) = channel();
