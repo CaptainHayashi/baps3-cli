@@ -9,6 +9,7 @@ extern crate serialize;
 
 use baps3_cli::{one_shot, verbose_logger};
 use baps3_cli::client::Client;
+use baps3_cli::message::Message;
 
 docopt!(Args deriving Show, "
 Loads a file into a BAPS3 server.
@@ -32,7 +33,6 @@ fn main() {
       .and_then(|c| one_shot(&mut log,
                              c,
                              &["FileLoad"],
-                             "load",
-                             &[&*args.arg_file]))
+                             Message::new("load", &[&*args.arg_file])))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }

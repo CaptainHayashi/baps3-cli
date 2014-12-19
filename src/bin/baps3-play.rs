@@ -9,6 +9,7 @@ extern crate serialize;
 
 use baps3_cli::{one_shot, verbose_logger};
 use baps3_cli::client::Client;
+use baps3_cli::message::Message;
 
 docopt!(Args deriving Show, "
 Plays the currently loaded file in a BAPS3 server.
@@ -32,7 +33,6 @@ fn main() {
       .and_then(|c| one_shot(&mut log,
                              c,
                              &["PlayStop"],
-                             "play",
-                             &[]))
+                             Message::from_word("play")))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }

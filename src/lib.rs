@@ -138,11 +138,13 @@ pub fn check_features(log: &mut Logger,
 
 pub fn send_command(log: &mut Logger,
                     Client{request_tx, response_rx}: Client,
-                    word: &str, args: &[&str])
+                    msg: &Message)
   -> Baps3Result<Client> {
+    let word = msg.word();
+    let args = msg.args();
     log!(log, "Sending command: {} {}", word, args);
 
-    request_tx.send(Request::SendMessage(Message::new(word, args)));
+    request_tx.send(Request::SendMessage(msg.clone()));
 
     'l: loop {
         match response_rx.recv_opt() {
@@ -189,18 +191,17 @@ pub fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
 ///     being received;
 ///   - Checks the server's FEATURES flags against `features`, and fails if
 ///     any are missing;
-///   - Sends the command `word` `args`;
+///   - Sends the message `msg`;
 ///   - Reads until the server sends an OKAY, FAIL, or WHAT response for that
 ///     command.
 pub fn one_shot<E: FromError<Baps3Error>>(log: &mut Logger,
                                           client: Client,
                                           features: &[&str],
-                                          word: &str,
-                                          args: &[&str])
+                                          msg: Message)
   -> Result<(), E> {
     check_baps3(log, client)
       .and_then(|c| check_features(log, features, c))
-      .and_then(|c| send_command(log, c, word, args))
+      .and_then(|c| send_command(log, c, &msg))
       .and_then(|c| quit_client(log, c))
       .or_else(|e| Err(FromError::from_error(e)))
 }

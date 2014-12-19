@@ -10,6 +10,7 @@ extern crate serialize;
 
 use baps3_cli::{Logger, one_shot, verbose_logger};
 use baps3_cli::client::Client;
+use baps3_cli::message::Message;
 use baps3_cli::time::TimeUnit;
 
 docopt!(Args deriving Show, "
@@ -63,7 +64,6 @@ fn main() {
       .and_then(|c| one_shot(&mut log,
                              c,
                              &["Seek"],
-                             "seek",
-                             &[&*spos]))
+                             Message::new("seek", &[&*spos])))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }

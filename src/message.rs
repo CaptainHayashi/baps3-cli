@@ -4,6 +4,7 @@
 use util::{slicify, unslicify};
 
 /// A structure for BAPS3 protocol messages.
+#[deriving(Clone)]
 pub struct Message {
     /// The command word of the message.
     _word: String,
@@ -16,8 +17,12 @@ impl Message {
     /// Creates a new Message.
     pub fn new<Sized? W: Str, Sized? A: Str+Sized>(word: &W, args: &[A])
       -> Message {
-        Message { _word: word.as_slice().to_string(),
-                  _args: unslicify(args) }
+        Message { _word: word.as_slice().to_string(), _args: unslicify(args) }
+    }
+
+    /// Creates a new Message with no arguments.
+    pub fn from_word<Sized? W: Str>(word: &W) -> Message {
+        Message { _word: word.as_slice().to_string(), _args: vec![] }
     }
 
     /// Retrieves the command word of this Message.
