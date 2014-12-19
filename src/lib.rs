@@ -14,6 +14,7 @@ use util::unslicify;
 pub mod client;
 pub mod message;
 pub mod util;
+pub mod time;
 
 pub type Logger<'a> = |&str|:'a;
 #[macro_export]

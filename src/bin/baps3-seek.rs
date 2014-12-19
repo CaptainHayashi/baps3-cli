@@ -10,6 +10,7 @@ extern crate serialize;
 
 use baps3_cli::{Logger, one_shot, verbose_logger};
 use baps3_cli::client::Client;
+use baps3_cli::time::TimeUnit;
 
 docopt!(Args deriving Show, "
 Seeks to a given position in the currently loading BAPS3 file.
@@ -38,17 +39,11 @@ Options:
 /// Uses the unit flags to convert `pos` to microseconds.
 fn pos_to_micros(log: &mut Logger, pos: u64, h: bool, m: bool, s: bool, ms: bool)
   -> u64 {
-    // Assume microseconds until proven otherwise
-    let mut unit: &str = "";
-    let mut micros = pos;
+    let unit   = TimeUnit::from_flags(h, m, s, ms);
+    let suffix = unit.suffix();
+    let micros = unit.as_micros(pos);
 
-    //                                 us  < ms   < s    < m  < h
-    if      h  { unit = "h";  micros = pos * 1000 * 1000 * 60 * 60; }
-    else if m  { unit = "m";  micros = pos * 1000 * 1000 * 60; }
-    else if s  { unit = "s";  micros = pos * 1000 * 1000; }
-    else if ms { unit = "ms"; micros = pos * 1000; }
-
-    log!(log, "seek to {}{} ({}us)", pos, unit, micros);
+    log!(log, "seek to {}{} ({}us)", pos, suffix, micros);
     micros
 }
 
