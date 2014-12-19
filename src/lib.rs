@@ -7,8 +7,8 @@ extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use std::error::{Error, FromError};
-use client::{Client, Request, Response};
-use util::{slicify, unslicify};
+use client::{Client, Message, Request, Response};
+use util::unslicify;
 
 pub mod client;
 pub mod util;
@@ -78,14 +78,12 @@ pub fn check_baps3(log: &mut Logger,
   -> Baps3Result<Client> {
     'l: loop {
         match response_rx.recv_opt() {
-            Ok(Response::Message(code, msg)) => {
-                match (&*code, &*slicify(&msg)) {
-                    ("OHAI", [ident]) => {
-                        log!(log, "Server ident: {}", ident);
-                        break 'l;
-                    }
-                    _ => return Err(Baps3Error::NotBaps3Server)
+            Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
+                ["OHAI", ident] => {
+                    log!(log, "Server ident: {}", ident);
+                    break 'l;
                 }
+                _ => return Err(Baps3Error::NotBaps3Server)
             },
             _ => return Err(Baps3Error::HungUp)
         }
@@ -103,28 +101,27 @@ pub fn check_features(log: &mut Logger,
   -> Baps3Result<Client> {
     'l: loop {
         match response_rx.recv_opt() {
-            Ok(Response::Message(code, msg)) => {
-                match (&*code, &*slicify(&msg)) {
-                    ("FEATURES", have) => {
-                        log!(log, "Server features: {}", have);
+            Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
+                ["FEATURES", have..] => {
+                    log!(log, "Server features: {}", have);
 
-                        for n in needed.iter() {
-                            if !have.contains(n) {
-                                return Err(Baps3Error::MissingFeatures {
-                                    wanted: unslicify(needed),
-                                    have: unslicify(have)
-                                })
-                            }
+                    for n in needed.iter() {
+                        if !have.contains(n) {
+                            return Err(Baps3Error::MissingFeatures {
+                                wanted: unslicify(needed),
+                                have: unslicify(have)
+                            })
                         }
-
-                        break 'l;
                     }
-                    (c, a) => return Err(Baps3Error::UnexpectedResponse {
-                        code: c.into_string(),
-                        args: unslicify(a),
-                        expectation: "FEATURES".into_string()
-                    })
-                }
+
+                    break 'l;
+                },
+                [c, a..] => return Err(Baps3Error::UnexpectedResponse {
+                    code: c.into_string(),
+                    args: unslicify(a),
+                    expectation: "FEATURES".into_string()
+                }),
+                [] => panic!("got empty slice from message")
             },
             _ => return Err(Baps3Error::HungUp)
         }
@@ -142,31 +139,27 @@ pub fn send_command(log: &mut Logger,
   -> Baps3Result<Client> {
     log!(log, "Sending command: {} {}", word, args);
 
-    let oword = word.into_string();
-    let oargs = args.iter().map(|arg| arg.into_string()).collect();
-    request_tx.send(Request::SendMessage(oword, oargs));
+    request_tx.send(Request::SendMessage(Message::new(word, args)));
 
     'l: loop {
         match response_rx.recv_opt() {
-            Ok(Response::Message(code, msg)) => {
-                match (&*code, &*slicify(&msg)) {
-                    ("OK", [cword, cargs..])
-                      if cword == word && cargs == args => {
-                        log!(log, "success!");
-                        break 'l;
-                    },
-                    ("WHAT", [advice, cword, cargs..])
-                      if cword == word && cargs == args => {
-                        werr!("command invalid: {}", advice);
-                        break 'l;
-                    },
-                    ("FAIL", [advice, cword, cargs..])
-                      if cword == word && cargs == args => {
-                        werr!("command failed: {}", advice);
-                        break 'l;
-                    },
-                    _ => ()
-                }
+            Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
+                ["OK", cword, cargs..]
+                  if cword == word && cargs == args => {
+                    log!(log, "success!");
+                    break 'l;
+                },
+                ["WHAT", advice, cword, cargs..]
+                  if cword == word && cargs == args => {
+                    werr!("command invalid: {}", advice);
+                    break 'l;
+                },
+                ["FAIL", advice, cword, cargs..]
+                  if cword == word && cargs == args => {
+                    werr!("command failed: {}", advice);
+                    break 'l;
+                },
+                _ => ()
             },
             _ => return Err(Baps3Error::HungUp)
         }

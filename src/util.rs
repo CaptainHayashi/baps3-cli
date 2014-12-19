@@ -12,18 +12,19 @@ macro_rules! werr(
 /// Creates a vector of string-slices from a vector of strings.
 ///
 /// The slice vector lives as long as the original vector.
-pub fn slicify<'a>(vec: &'a Vec<String>) -> Vec<&'a str> {
+pub fn slicify<'a, Sized? S: Sized+Str>(vec: &'a Vec<S>) -> Vec<&'a str> {
     map_collect(vec.iter(), |a| a.as_slice())
 }
 
 /// Creates a vector of strings from a slice of string-slices.
-pub fn unslicify(slices: &[&str]) -> Vec<String> {
-    map_collect(slices.iter(), |a| a.to_string())
+pub fn unslicify<'a, Sized? S: Sized+Str>(slices: &'a[S]) -> Vec<String> {
+    map_collect(slices.iter(), |a: &S| a.as_slice().to_string())
 }
 
 /// Performs a map and collects the results.
-pub fn map_collect<A, B, I: Iterator<A>, F: FromIterator<B>>(
-  iter: I, f: |A| -> B
-) -> F {
+pub fn map_collect<A, B, I, F, C>(iter: I, f: C) -> F
+  where I: Iterator<A>,
+        F: FromIterator<B>,
+        C: FnMut(A) -> B {
     iter.map(f).collect::<F>()
 }

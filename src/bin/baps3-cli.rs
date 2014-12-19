@@ -1,42 +1,36 @@
 #![feature(phase)]
 
 extern crate baps3_protocol;
+extern crate baps3_cli;
 extern crate libc;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use baps3_protocol::Unpacker;
-use client::{Client, Request, Response};
-
-mod client;
+use baps3_cli::client::{Client, Message, Request, Response};
 
 fn main() {
     let (int_request_tx, int_request_rx) = channel();
 
-    spawn(proc() { stdin_loop(int_request_tx)});
+    spawn(move || { stdin_loop(int_request_tx)});
 
     println!("Disconnected");
 
     for msg in int_request_rx.iter() {
         match msg {
             Request::Quit => break,
-            Request::SendMessage(cmd, args) => {
-                if cmd.as_slice() == "connect" {
-                    if args.len() == 1 {
-                        match Client::new(args[0].as_slice()) {
-                            Ok(client) => {
-                                client_main_loop(
-                                    client,
-                                    &int_request_rx,
-                                );
-                                println!("Disconnected");
-                            },
-                            Err(e) => println!("{}", e)
-                        }
-                    }
-                } else {
-                    println!("can't do that, disconnected!");
-                }
+            Request::SendMessage(msg) => match msg.as_str_vec().as_slice() {
+                ["connect", dest] => match Client::new(dest) {
+                    Ok(client) => {
+                        client_main_loop(
+                            client,
+                            &int_request_rx,
+                        );
+                        println!("Disconnected");
+                    },
+                    Err(e) => println!("{}", e)
+                },
+                _ => println!("can't do that, disconnected!")
             }
         }
     }
@@ -69,7 +63,7 @@ fn send_message(
 ) {
     for pline in unpacker.feed(message.as_slice()).iter() {
         if let [ref cmd, args..] = pline.as_slice() {
-            request_tx.send(Request::SendMessage(cmd.clone(), args.to_vec()));
+            request_tx.send(Request::SendMessage(Message::new(cmd, args)));
         }
     }
 }
@@ -80,7 +74,7 @@ fn client_main_loop(Client {
 }: Client, int_request_rx: &Receiver<Request>) {
     let (int_response_tx, int_response_rx) = channel();
 
-    spawn(proc() { response_iter(int_response_rx) });
+    spawn(move || { response_iter(int_response_rx) });
 
     let sel = std::comm::Select::new();
 
@@ -94,18 +88,19 @@ fn client_main_loop(Client {
         let id = sel.wait();
         if id == reqh.id() {
             match reqh.recv_opt() {
-                Ok(Request::SendMessage(ref cmd, ref args))
-                    if cmd.as_slice() == "disconnect" &&
-                       args.len() == 0 => {
-                    request_tx.send(Request::Quit);
-                    return;
+                Ok(Request::SendMessage(msg)) =>
+                  match msg.as_str_vec().as_slice() {
+                    ["disconnect"] => {
+                        request_tx.send(Request::Quit);
+                        return;
+                    },
+                    [word, args..] => {
+                        println!("> {} {}", word, args);
+                        request_tx.send(Request::SendMessage(Message::new(word, args)));
+                    },
+                    [] => ()
                 },
-                Ok(req) => {
-                    if let Request::SendMessage(ref cmd, ref args) = req {
-                        println!("> {} {}", cmd, args);
-                    }
-                    request_tx.send(req);
-                },
+                Ok(req) => request_tx.send(req),
                 Err(_) => return
             }
         } else {
@@ -127,7 +122,7 @@ fn client_main_loop(Client {
 fn response_iter(response_rx: Receiver<Response>) {
     for m in response_rx.iter() {
         match m {
-            Response::Message(cmd, args) => println!("< {} {}", cmd, args),
+            Response::Message(m) => println!("< {} {}", m.word(), m.args()),
             Response::ClientError(e) => {
                 println!("! {}", e);
                 return;

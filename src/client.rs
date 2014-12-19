@@ -10,6 +10,34 @@ use std::io::{
 use std::io::net::ip::ToSocketAddr;
 
 use baps3_protocol::{pack, Unpacker};
+use util::{slicify, unslicify};
+
+/// A structure for BAPS3 protocol messages.
+pub struct Message {
+    _word: String,
+    _args: Vec<String>
+}
+impl Message {
+    pub fn new<Sized? W: Str, Sized? A: Str+Sized>(word: &W, args: &[A])
+      -> Message {
+        Message { _word: word.as_slice().to_string(),
+                  _args: unslicify(args) }
+    }
+
+    pub fn word<'a>(&'a self) -> &'a str {
+        self._word.as_slice()
+    }
+
+    pub fn args<'a>(&'a self) -> Vec<&'a str> {
+        slicify(&self._args)
+    }
+
+    pub fn as_str_vec<'a>(&'a self) -> Vec<&'a str> {
+        let mut v = self.args();
+        v.insert(0, self.word());
+        v
+    }
+}
 
 /// A BAPS3 protocol client.
 pub struct Client {
@@ -23,7 +51,7 @@ pub struct Client {
 /// A request to the BAPS3 client.
 pub enum Request {
     /// Send a message to a client.
-    SendMessage(String, Vec<String>),
+    SendMessage(Message),
 
     /// Close the client connection.
     Quit
@@ -32,7 +60,7 @@ pub enum Request {
 /// A response from the BAPS3 client.
 pub enum Response {
     /// The client has sent a message.
-    Message(String, Vec<String>),
+    Message(Message),
 
     /// The client connection has closed.
     Gone,
@@ -52,10 +80,10 @@ impl Client {
 
         let w_stream = stream.clone();
         let w_resp_tx = response_tx.clone();
-        spawn(proc() { write_task(w_stream, w_resp_tx, request_rx); });
+        spawn(move || { write_task(w_stream, w_resp_tx, request_rx); });
 
         let r_stream = stream.clone();
-        spawn(proc() { read_task(r_stream, response_tx); });
+        spawn(move || { read_task(r_stream, response_tx); });
 
         Ok(Client {
             request_tx: request_tx,
@@ -75,9 +103,9 @@ fn read_task(stream: TcpStream, tx: Sender<Response>) {
 
         match strm.read_byte() {
             Ok(b) => for pline in u.feed_bytes(&mut(Some(b).into_iter())).iter() {
-                if let [ref cmd, args..] = pline.as_slice() {
+                if let [ref word, args..] = pline.as_slice() {
                     if let Err(_) = tx.send_opt(
-                        Response::Message(cmd.clone(), args.to_vec())
+                        Response::Message(Message::new(word.as_slice(), args))
                     ) {
                         break 'l;
                     }
@@ -103,11 +131,9 @@ fn write_task(stream: TcpStream,
 
     'l: for r in rx.iter() {
         match r {
-            Request::SendMessage(cmd, args) => {
-                let sargs = args.iter()
-                                .map(|f| f.as_slice())
-                                .collect::<Vec<&str>>();
-                let packed = pack(cmd.as_slice(), sargs.as_slice());
+            Request::SendMessage(msg) => {
+                let sargs = msg.args();
+                let packed = pack(msg.word(), sargs.as_slice());
 
                 if let Err(e) = strm.write_line(packed.as_slice()) {
                     tx.send(Response::ClientError(e));

@@ -3,24 +3,24 @@ name = "baps3_cli"
 version = "0.0.1"
 dependencies = [
  "baps3_protocol 0.1.0 (git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git)",
- "docopt_macros 0.6.13 (git+git://github.com/docopt/docopt.rs)",
+ "docopt_macros 0.6.15 (git+git://github.com/docopt/docopt.rs)",
 ]
 
 [[package]]
 name = "baps3_protocol"
 version = "0.1.0"
-source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#597af72fc1f5dba81fa4b6ae0a2c94fd7fc4b560"
+source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#0076df734f439c30ff252549c668c5b4fc05f1c1"
 
 [[package]]
 name = "docopt"
-version = "0.6.13"
-source = "git+git://github.com/docopt/docopt.rs#38cc4572bef4dc5cbcb7526500aa14d1898c426d"
+version = "0.6.15"
+source = "git+git://github.com/docopt/docopt.rs#6f2da7c4033cec2ac67b74fa473343e3889bda5c"
 
 [[package]]
 name = "docopt_macros"
-version = "0.6.13"
-source = "git+git://github.com/docopt/docopt.rs#38cc4572bef4dc5cbcb7526500aa14d1898c426d"
+version = "0.6.15"
+source = "git+git://github.com/docopt/docopt.rs#6f2da7c4033cec2ac67b74fa473343e3889bda5c"
 dependencies = [
- "docopt 0.6.13 (git+git://github.com/docopt/docopt.rs)",
+ "docopt 0.6.15 (git+git://github.com/docopt/docopt.rs)",
 ]
 
