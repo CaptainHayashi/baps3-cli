@@ -84,12 +84,12 @@ fn read_task(stream: TcpStream, tx: Sender<Response>) {
                     }
                 }
             },
-            Err(ref e) if e.kind == IoErrorKind::EndOfFile => {
-                let _ = tx.send_opt(Response::Gone);
-                break 'l;
-            },
-            Err(e) => {
-                let _ = tx.send_opt(Response::ClientError(e));
+            Err(ref e) => {
+                let _ = tx.send_opt(if e.kind == IoErrorKind::EndOfFile {
+                    Response::Gone
+                } else {
+                    Response::ClientError(e.clone())
+                });
                 break 'l;
             },
         }
