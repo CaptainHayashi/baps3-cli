@@ -23,7 +23,7 @@ impl Message {
 
     /// Creates a new Message with no arguments.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// A `from_word` message has a word:
     ///
@@ -49,7 +49,7 @@ impl Message {
     /// A `pack`ed message is ready for sending down the wire to a BAPS3
     /// client or server via `write_line`.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// If none of the arguments have special characters, this is trivial:
     ///
