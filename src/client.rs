@@ -65,17 +65,26 @@ impl Client {
     }
 }
 
+/// Feeds `len` bytes from `buf` into `u`.
+///
+/// Returns the vector of messages returned by the unpacker for this feed.
+fn feed<'a>(u: &mut Unpacker, buf: &[u8], len: uint) -> Vec<Vec<String>>{
+    let buflet = buf.slice_to(len).to_vec();
+    u.feed_bytes(&mut buflet.into_iter())
+}
+
 /// The body of the task responsible for reading responses from the client.
 fn read_task(stream: TcpStream, tx: Sender<Response>) {
     let mut u = Unpacker::new();
     let mut strm = stream;
+    let mut buf = [0u8, ..1024];
 
     'l: loop {
         // We ignore any send errors, because the response channel is liable to
         // be closed by the client when it gets sick of hearing us.
 
-        match strm.read_byte() {
-            Ok(b) => for pline in u.feed_bytes(&mut(Some(b).into_iter())).iter() {
+        match strm.read(&mut buf) {
+            Ok(len) => for pline in feed(&mut u, &buf, len).into_iter() {
                 if let [ref word, args..] = pline.as_slice() {
                     if let Err(_) = tx.send_opt(
                         Response::Message(Message::new(word.as_slice(), args))
