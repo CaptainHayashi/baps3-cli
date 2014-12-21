@@ -7,7 +7,7 @@ macro_rules! werr(
             panic!("{}", err);
         }
     )
-)
+);
 
 /// Creates a vector of string-slices from a vector of strings.
 ///

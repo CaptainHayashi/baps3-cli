@@ -2,6 +2,7 @@
 #![experimental]
 
 use util::{slicify, unslicify};
+use baps3_protocol;
 
 /// A structure for BAPS3 protocol messages.
 #[deriving(Clone)]
@@ -23,6 +24,34 @@ impl Message {
     /// Creates a new Message with no arguments.
     pub fn from_word<Sized? W: Str>(word: &W) -> Message {
         Message { _word: word.as_slice().to_string(), _args: vec![] }
+    }
+
+    /// Packs a Message into a BAPS3 protocol line.
+    ///
+    /// A `pack`ed message is ready for sending down the wire to a BAPS3
+    /// client or server via `write_line`.
+    ///
+    /// # Example
+    ///
+    /// If none of the arguments have special characters, this is trivial:
+    ///
+    /// ```rust
+    /// use baps3_cli::message::Message;
+    /// let m = Message::new("foo", &["bar", "baz"]);
+    /// assert_eq!(m.pack().as_slice(), "foo bar baz");
+    /// ```
+    ///
+    /// With special characters, we get escaping:
+    ///
+    /// ```rust
+    /// use baps3_cli::message::Message;
+    /// let m = Message::new("foo", &["with space", "'single'", "\"double\""]);
+    /// assert_eq!(m.pack().as_slice(),
+    ///            "foo 'with space' ''\\''single'\\''' '\"double\"'");
+    /// ```
+    pub fn pack(&self) -> String {
+        let vargs = self.args();
+        baps3_protocol::pack(self.word(), vargs.as_slice())
     }
 
     /// Retrieves the command word of this Message.

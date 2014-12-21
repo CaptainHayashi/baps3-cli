@@ -35,7 +35,7 @@ Options:
   -S, --seconds          Interpret <pos> as seconds.
                          Overrides -m.
   -m, --milliseconds     Interpret <pos> as milliseconds.
-", arg_pos: u64)
+", arg_pos: u64);
 
 /// Uses the unit flags to convert `pos` to microseconds.
 fn pos_to_micros(log: &mut Logger, pos: u64, h: bool, m: bool, s: bool, ms: bool)

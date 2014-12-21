@@ -48,7 +48,7 @@ fn stdin_loop(
         match line {
             Ok(l) => send_message(&request_tx, &mut u, l.as_slice()),
             Err(e) => {
-                println!("{}", e)
+                println!("{}", e);
                 return;
             }
         }

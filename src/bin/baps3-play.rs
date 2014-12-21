@@ -23,7 +23,7 @@ Options:
                          [Default: localhost:1350]
   -v, --verbose          Prints a trail of miscellaneous information
                          about the action.
-")
+");
 
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());

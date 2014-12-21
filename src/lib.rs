@@ -22,7 +22,7 @@ macro_rules! log(
     ($l:ident, $($arg:tt)*) => (
         let _ = (*$l)(&*format!($($arg)*));
     )
-)
+);
 
 /// Error type for high-level BAPS3 client errors.
 pub enum Baps3Error {
@@ -98,6 +98,32 @@ pub fn check_baps3(log: &mut Logger,
     })
 }
 
+/// Determines if a BAPS3 server is missing features needed by this client.
+///
+/// When performing a missing features check on a Client, prefer
+/// `check_features`.
+///
+/// # Examples
+///
+/// This server is OK:
+///
+/// ```rust
+/// use baps3_cli::missing_features;
+/// assert!(!missing_features(&["PlayStop", "End"],
+///                           &["PlayStop", "End", "FileLoad"]))
+/// ```
+///
+/// However, this one is in trouble:
+///
+/// ```rust
+/// use baps3_cli::missing_features;
+/// assert!(missing_features(&["PlayStop", "End", "FileLoad"],
+///                          &["PlayStop", "End"]))
+/// ```
+pub fn missing_features(needed: &[&str], have: &[&str]) -> bool {
+    needed.iter().any(|n| !have.contains(n))
+}
+
 pub fn check_features(log: &mut Logger,
                       needed: &[&str],
                       Client{request_tx, response_rx}: Client)
@@ -107,14 +133,11 @@ pub fn check_features(log: &mut Logger,
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
                 ["FEATURES", have..] => {
                     log!(log, "Server features: {}", have);
-
-                    for n in needed.iter() {
-                        if !have.contains(n) {
-                            return Err(Baps3Error::MissingFeatures {
-                                wanted: unslicify(needed),
-                                have: unslicify(have)
-                            })
-                        }
+                    if missing_features(needed, have) {
+                        return Err(Baps3Error::MissingFeatures {
+                            wanted: unslicify(needed),
+                            have: unslicify(have)
+                        })
                     }
 
                     break 'l;
