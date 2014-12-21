@@ -22,6 +22,24 @@ impl Message {
     }
 
     /// Creates a new Message with no arguments.
+    ///
+    /// # Example
+    ///
+    /// A `from_word` message has a word:
+    ///
+    /// ```rust
+    /// use baps3_cli::message::Message;
+    /// let m = Message::from_word("bird");
+    /// assert_eq!(m.word(), "bird");
+    /// ```
+    ///
+    /// ...but no arguments:
+    ///
+    /// ```rust
+    /// use baps3_cli::message::Message;
+    /// let m = Message::from_word("bird");
+    /// assert!(m.args().is_empty());
+    /// ```
     pub fn from_word<Sized? W: Str>(word: &W) -> Message {
         Message { _word: word.as_slice().to_string(), _args: vec![] }
     }
