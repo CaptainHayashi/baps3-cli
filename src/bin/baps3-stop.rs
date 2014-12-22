@@ -8,8 +8,8 @@ extern crate serialize;
 #[phase(plugin)] extern crate docopt_macros;
 
 use baps3_cli::{one_shot, verbose_logger};
-use baps3_cli::client::Client;
-use baps3_cli::message::Message;
+use baps3_protocol::client::Client;
+use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
 Stops the currently playing file in a BAPS3 server.

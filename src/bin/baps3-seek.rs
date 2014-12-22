@@ -9,9 +9,9 @@ extern crate serialize;
 #[phase(plugin)] extern crate docopt_macros;
 
 use baps3_cli::{Logger, one_shot, verbose_logger};
-use baps3_cli::client::Client;
-use baps3_cli::message::Message;
 use baps3_cli::time::TimeUnit;
+use baps3_protocol::client::Client;
+use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
 Seeks to a given position in the currently loading BAPS3 file.

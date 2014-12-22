@@ -1,14 +1,12 @@
 #![feature(phase)]
 
 extern crate baps3_protocol;
-extern crate baps3_cli;
 extern crate libc;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
-use baps3_protocol::Unpacker;
-use baps3_cli::client::{Client, Request, Response};
-use baps3_cli::message::Message;
+use baps3_protocol::client::{Client, Request, Response};
+use baps3_protocol::proto::{Unpacker, Message};
 
 fn main() {
     let (int_request_tx, int_request_rx) = channel();

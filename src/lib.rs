@@ -1,3 +1,4 @@
+//! Support library for BAPS3 command-line interfaces.
 #![feature(phase)]
 #![feature(macro_rules)]
 #![feature(unboxed_closures)]
@@ -7,12 +8,10 @@ extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use std::error::{Error, FromError};
-use client::{Client, Request, Response};
-use message::Message;
+use baps3_protocol::client::{Client, Request, Response};
+use baps3_protocol::proto::Message;
 use util::unslicify;
 
-pub mod client;
-pub mod message;
 pub mod util;
 pub mod time;
 

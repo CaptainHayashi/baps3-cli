@@ -12,8 +12,8 @@ use std::os;
 use std::path;
 
 use baps3_cli::{one_shot, verbose_logger};
-use baps3_cli::client::Client;
-use baps3_cli::message::Message;
+use baps3_protocol::client::Client;
+use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
 Loads a file into a BAPS3 server.
