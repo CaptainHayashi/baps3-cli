@@ -9,7 +9,6 @@ extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
 use baps3_cli::{one_shot, verbose_logger};
-use baps3_protocol::client::Client;
 use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
@@ -30,10 +29,9 @@ fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
     let mut log = verbose_logger(args.flag_verbose);
 
-    Client::new(&*args.flag_target)
-      .and_then(|c| one_shot(&mut log,
-                             c,
-                             &["PlayStop"],
-                             Message::from_word("stop")))
+    one_shot(&mut log,
+             &*args.flag_target,
+             &["PlayStop"],
+             Message::from_word("stop"))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }

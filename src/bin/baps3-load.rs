@@ -13,7 +13,6 @@ use std::os;
 use std::path;
 
 use baps3_cli::{one_shot, verbose_logger};
-use baps3_protocol::client::Client;
 use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
@@ -32,11 +31,10 @@ Options:
 
 fn client(verbose: bool, target: &str, path: &str) -> IoResult<()> {
     let mut log = verbose_logger(verbose);
-    Client::new(target)
-      .and_then(|c| one_shot(&mut log,
-                             c,
-                             &["FileLoad"],
-                             Message::new("load", &[path])))
+    one_shot(&mut log,
+             target,
+             &["FileLoad"],
+             Message::new("load", &[path]))
 }
 
 fn io_err(desc: &'static str) -> IoError {

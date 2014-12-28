@@ -11,7 +11,6 @@ extern crate docopt;
 
 use baps3_cli::{Logger, one_shot, verbose_logger};
 use baps3_cli::time::TimeUnit;
-use baps3_protocol::client::Client;
 use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
@@ -61,10 +60,9 @@ fn main() {
                             args.flag_milliseconds);
     let spos = pos.to_string();
 
-    Client::new(&*args.flag_target)
-      .and_then(|c| one_shot(&mut log,
-                             c,
-                             &["Seek"],
-                             Message::new("seek", &[&*spos])))
+    one_shot(&mut log,
+             &*args.flag_target,
+             &["Seek"],
+             Message::new("seek", &[&*spos]))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }
