@@ -20,7 +20,7 @@ fn main() {
         match msg {
             Request::Quit => break,
             Request::SendMessage(msg) => match msg.as_str_vec().as_slice() {
-                ["connect", dest] => match Client::new(dest) {
+                ["!connect", dest] => match Client::new(dest) {
                     Ok(client) => {
                         client_main_loop(
                             client,
@@ -91,7 +91,7 @@ fn client_main_loop(Client {
             match reqh.recv_opt() {
                 Ok(Request::SendMessage(msg)) =>
                   match msg.as_str_vec().as_slice() {
-                    ["disconnect"] => {
+                    ["!disconnect"] => {
                         request_tx.send(Request::Quit);
                         return;
                     },
@@ -123,7 +123,17 @@ fn client_main_loop(Client {
 fn response_iter(response_rx: Receiver<Response>) {
     for m in response_rx.iter() {
         match m {
-            Response::Message(m) => println!("< {} {}", m.word(), m.args()),
+            Response::Message(m) => match &*m.as_str_vec() {
+                [ "TIME", t ] => if let Some(ti) = t.parse::<i64>() {
+                    let d = std::time::Duration::microseconds(ti);
+                    println!("T {}:{:02}:{:02}",
+                         d.num_hours(),
+                         d.num_minutes() % 60,
+                         d.num_seconds() % 60);
+                },
+                [ word, args.. ] => println!("< {} {}", word, args),
+                [] => ()
+            },
             Response::ClientError(e) => {
                 println!("! {}", e);
                 return;
