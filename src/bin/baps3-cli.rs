@@ -5,6 +5,8 @@ extern crate libc;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
+use std::borrow::ToOwned;
+
 use baps3_protocol::client::{Client, Request, Response};
 use baps3_protocol::proto::{Unpacker, Message};
 
@@ -13,6 +15,8 @@ fn commands() {
     println!("  !c HOST:PORT - connect (if not connected)");
     println!("  !d           - disconnect (if connected)");
     println!("  !h           - this help message");
+    println!("  !t           - report current time");
+    println!("  !T           - toggle whether to report time");
     println!("  !q           - quit");
     println!("");
     println!("Anything not prefixed with ! is sent to the server.");
@@ -83,15 +87,60 @@ fn send_message(
     }
 }
 
+fn forward(tx: Sender<Request>, word: &str, args: &[&str]) {
+    println!("> {} {}", word, args);
+    tx.send(Request::SendMessage(Message::new(word, args)));
+}
+
+struct CliClient {
+    /// The last time-stamp reported by the server.
+    last_time: String,
+
+    /// Whether to report time.
+    report_time: bool
+}
+impl CliClient {
+    /// Creates a new CliClient.
+    fn new() -> CliClient {
+        CliClient { last_time:   "0:00".to_owned(),
+                    report_time: true }
+    }
+
+    /// Toggles whether to report time.
+    fn toggle_time(&mut self) {
+        self.report_time = !self.report_time;
+        println!("i time reporting: {}",
+                 if self.report_time { "on" } else { "off" });
+    }
+
+    /// Reports the current time.
+    fn report_time(&self) {
+        println!("T {}", self.last_time);
+    }
+
+    /// Handles a TIME notification for this CliClient.
+    fn time(&mut self, t: &str) {
+        if let Some(ti) = t.parse::<i64>() {
+            let d = std::time::Duration::microseconds(ti);
+            let s = format!("{}{:02}:{:02}",
+                if 0 < d.num_hours() { format!("{}:", d.num_hours()) }
+                else                 { String::new()                 },
+                d.num_minutes() % 60,
+                d.num_seconds() % 60);
+            if s != self.last_time {
+                self.last_time = s;
+                if self.report_time { self.report_time() };
+            }
+        }
+    }
+}
+
 /// Returns true if the outer main loop must exit.
 fn client_main_loop(Client {
     request_tx,
     response_rx
 }: Client, int_request_rx: &Receiver<Request>) -> bool {
-    let (int_response_tx, int_response_rx) = channel();
-
-    std::thread::Thread::spawn(move || { response_iter(int_response_rx) })
-                        .detach();
+    let mut state = CliClient::new();
 
     let sel = std::comm::Select::new();
 
@@ -116,10 +165,9 @@ fn client_main_loop(Client {
                         request_tx.send(Request::Quit);
                         return true;
                     }
-                    [word, args..] => {
-                        println!("> {} {}", word, args);
-                        request_tx.send(Request::SendMessage(Message::new(word, args)));
-                    },
+                    ["!T"] => state.toggle_time(),
+                    ["!t"] => state.report_time(),
+                    [word, args..] => forward(request_tx.clone(), word, args),
                     [] => ()
                 },
                 Ok(req) => request_tx.send(req),
@@ -127,46 +175,20 @@ fn client_main_loop(Client {
             }
         } else {
             match resh.recv_opt() {
-                Ok(Response::Gone) => {
-                    int_response_tx.send(Response::Gone);
+                Ok(Response::Gone) => return false,
+                Ok(Response::ClientError(e)) => {
+                    println!("! {}", e);
                     return false;
                 },
-                Ok(r) => int_response_tx.send(r),
+                Ok(Response::Message(m)) => match &*m.as_str_vec() {
+                    [ "TIME", t ] => state.time(t),
+                    [ word, args.. ] => println!("< {} {}", word, args),
+                    [] => ()
+                },
                 Err(_) => {
-                    int_response_tx.send(Response::Gone);
                     return false;
                 }
             }
-        }
-    }
-}
-
-fn response_iter(response_rx: Receiver<Response>) {
-    let mut last_time = String::new();
-
-    for m in response_rx.iter() {
-        match m {
-            Response::Message(m) => match &*m.as_str_vec() {
-                [ "TIME", t ] => if let Some(ti) = t.parse::<i64>() {
-                    let d = std::time::Duration::microseconds(ti);
-                    let s = format!("{}{:02}:{:02}",
-                         if 0 < d.num_hours() { format!("{}:", d.num_hours()) }
-                         else                 { String::new()                 },
-                         d.num_minutes() % 60,
-                         d.num_seconds() % 60);
-                    if s != last_time {
-                        println!("T {}", s);
-                        last_time = s;
-                    }
-                },
-                [ word, args.. ] => println!("< {} {}", word, args),
-                [] => ()
-            },
-            Response::ClientError(e) => {
-                println!("! {}", e);
-                return;
-            }
-            Response::Gone => return
         }
     }
 }
