@@ -8,28 +8,43 @@ extern crate docopt;
 use baps3_protocol::client::{Client, Request, Response};
 use baps3_protocol::proto::{Unpacker, Message};
 
+fn commands() {
+    println!("Commands: ");
+    println!("  !c HOST:PORT - connect (if not connected)");
+    println!("  !d           - disconnect (if connected)");
+    println!("  !h           - this help message");
+    println!("  !q           - quit");
+    println!("");
+    println!("Anything not prefixed with ! is sent to the server.");
+}
+
 fn main() {
     let (int_request_tx, int_request_rx) = channel();
 
     std::thread::Thread::spawn(move || { stdin_loop(int_request_tx)})
                         .detach();
 
-    println!("Disconnected");
+    println!("Currently disconnected.");
+    println!("Type !h <newline> for command help");
 
-    for msg in int_request_rx.iter() {
+    'l: for msg in int_request_rx.iter() {
         match msg {
             Request::Quit => break,
             Request::SendMessage(msg) => match msg.as_str_vec().as_slice() {
-                ["!connect", dest] => match Client::new(dest) {
+                ["!c", dest] => match Client::new(dest) {
                     Ok(client) => {
-                        client_main_loop(
+                        let quit = client_main_loop(
                             client,
                             &int_request_rx,
                         );
                         println!("Disconnected");
+
+                        if quit { break 'l };
                     },
                     Err(e) => println!("{}", e)
                 },
+                ["!h"] => commands(),
+                ["!q"] => return,
                 _ => println!("can't do that, disconnected!")
             }
         }
@@ -68,10 +83,11 @@ fn send_message(
     }
 }
 
+/// Returns true if the outer main loop must exit.
 fn client_main_loop(Client {
     request_tx,
     response_rx
-}: Client, int_request_rx: &Receiver<Request>) {
+}: Client, int_request_rx: &Receiver<Request>) -> bool {
     let (int_response_tx, int_response_rx) = channel();
 
     std::thread::Thread::spawn(move || { response_iter(int_response_rx) })
@@ -91,10 +107,15 @@ fn client_main_loop(Client {
             match reqh.recv_opt() {
                 Ok(Request::SendMessage(msg)) =>
                   match msg.as_str_vec().as_slice() {
-                    ["!disconnect"] => {
+                    ["!d"] => {
                         request_tx.send(Request::Quit);
-                        return;
+                        return false;
                     },
+                    ["!h"] => commands(),
+                    ["!q"] => {
+                        request_tx.send(Request::Quit);
+                        return true;
+                    }
                     [word, args..] => {
                         println!("> {} {}", word, args);
                         request_tx.send(Request::SendMessage(Message::new(word, args)));
@@ -102,18 +123,18 @@ fn client_main_loop(Client {
                     [] => ()
                 },
                 Ok(req) => request_tx.send(req),
-                Err(_) => return
+                Err(_) => return false
             }
         } else {
             match resh.recv_opt() {
                 Ok(Response::Gone) => {
                     int_response_tx.send(Response::Gone);
-                    return;
+                    return false;
                 },
                 Ok(r) => int_response_tx.send(r),
                 Err(_) => {
                     int_response_tx.send(Response::Gone);
-                    return;
+                    return false;
                 }
             }
         }
@@ -121,15 +142,22 @@ fn client_main_loop(Client {
 }
 
 fn response_iter(response_rx: Receiver<Response>) {
+    let mut last_time = String::new();
+
     for m in response_rx.iter() {
         match m {
             Response::Message(m) => match &*m.as_str_vec() {
                 [ "TIME", t ] => if let Some(ti) = t.parse::<i64>() {
                     let d = std::time::Duration::microseconds(ti);
-                    println!("T {}:{:02}:{:02}",
-                         d.num_hours(),
+                    let s = format!("{}{:02}:{:02}",
+                         if 0 < d.num_hours() { format!("{}:", d.num_hours()) }
+                         else                 { String::new()                 },
                          d.num_minutes() % 60,
                          d.num_seconds() % 60);
+                    if s != last_time {
+                        println!("T {}", s);
+                        last_time = s;
+                    }
                 },
                 [ word, args.. ] => println!("< {} {}", word, args),
                 [] => ()
