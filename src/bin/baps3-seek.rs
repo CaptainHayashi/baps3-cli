@@ -4,8 +4,9 @@
 extern crate baps3_protocol;
 extern crate baps3_cli;
 #[phase(plugin)] extern crate baps3_cli;
+
+extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
-extern crate serialize;
 #[phase(plugin)] extern crate docopt_macros;
 
 use baps3_cli::{Logger, one_shot, verbose_logger};

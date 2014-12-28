@@ -7,6 +7,7 @@ extern crate baps3_protocol;
 extern crate docopt;
 #[phase(plugin)] extern crate docopt_macros;
 
+use std::borrow::ToOwned;
 use std::error::{Error, FromError};
 use baps3_protocol::client::{Client, Request, Response};
 use baps3_protocol::proto::Message;
@@ -142,9 +143,9 @@ pub fn check_features(log: &mut Logger,
                     break 'l;
                 },
                 [c, a..] => return Err(Baps3Error::UnexpectedResponse {
-                    code: c.into_string(),
+                    code: c.to_owned(),
                     args: unslicify(a),
-                    expectation: "FEATURES".into_string()
+                    expectation: "FEATURES".to_owned()
                 }),
                 [] => panic!("got empty slice from message")
             },

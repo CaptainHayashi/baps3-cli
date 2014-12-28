@@ -3,24 +3,39 @@ name = "baps3_cli"
 version = "0.0.1"
 dependencies = [
  "baps3_protocol 0.2.0 (git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git)",
- "docopt_macros 0.6.16 (git+git://github.com/docopt/docopt.rs)",
+ "docopt_macros 0.6.20 (git+git://github.com/docopt/docopt.rs)",
+ "rustc-serialize 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "baps3_protocol"
 version = "0.2.0"
-source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#cbcd901726dd4561aee174d1d6b75efc81b4f9b6"
+source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#327712aedaf4c067f1783a2752ac21285bba8b65"
 
 [[package]]
 name = "docopt"
-version = "0.6.16"
-source = "git+git://github.com/docopt/docopt.rs#3f39bcc7f590716b6dbb21822fe96f649871ded4"
+version = "0.6.20"
+source = "git+git://github.com/docopt/docopt.rs#338f1e66c4ee6433092a45a12e624bb309706101"
+dependencies = [
+ "regex 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "docopt_macros"
-version = "0.6.16"
-source = "git+git://github.com/docopt/docopt.rs#3f39bcc7f590716b6dbb21822fe96f649871ded4"
+version = "0.6.20"
+source = "git+git://github.com/docopt/docopt.rs#338f1e66c4ee6433092a45a12e624bb309706101"
 dependencies = [
- "docopt 0.6.16 (git+git://github.com/docopt/docopt.rs)",
+ "docopt 0.6.20 (git+git://github.com/docopt/docopt.rs)",
 ]
+
+[[package]]
+name = "regex"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "rustc-serialize"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
