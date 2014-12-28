@@ -31,12 +31,14 @@ Options:
 ");
 
 fn load(Args { arg_file,
-               flag_verbose,
+               flag_play,
                flag_target,
-               flag_play, .. }: Args) -> Baps3Result<()> {
+               flag_verbose, .. }: Args) -> Baps3Result<()> {
     let ap        = try!(to_absolute_path_str(&*arg_file));
     let mut log   = verbose_logger(flag_verbose);
-    let mut baps3 = try!(Baps3::new(&mut log, &*flag_target, &["FileLoad"]));
+    let mut baps3 = try!(Baps3::new(&mut log, &*flag_target,
+        &*(if flag_play { vec!["FileLoad", "PlayStop"] }
+           else         { vec!["FileLoad"]             })));
 
     try!(baps3.send(&Message::new("load", &[&*ap])));
 
@@ -62,6 +64,5 @@ fn to_absolute_path_str(rel: &str) -> Baps3Result<String> {
 
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-
     load(args).unwrap_or_else(|e| werr!("error: {}", e));
 }
