@@ -11,7 +11,8 @@ use baps3_protocol::proto::{Unpacker, Message};
 fn main() {
     let (int_request_tx, int_request_rx) = channel();
 
-    spawn(move || { stdin_loop(int_request_tx)});
+    std::thread::Thread::spawn(move || { stdin_loop(int_request_tx)})
+                        .detach();
 
     println!("Disconnected");
 
@@ -73,7 +74,8 @@ fn client_main_loop(Client {
 }: Client, int_request_rx: &Receiver<Request>) {
     let (int_response_tx, int_response_rx) = channel();
 
-    spawn(move || { response_iter(int_response_rx) });
+    std::thread::Thread::spawn(move || { response_iter(int_response_rx) })
+                        .detach();
 
     let sel = std::comm::Select::new();
 
