@@ -9,7 +9,8 @@ extern crate docopt;
 
 use std::borrow::ToOwned;
 use std::error::{ Error, FromError };
-use std::io::IoResult;
+use std::fmt::{ Show, Formatter };
+use std::io::{ IoError, IoErrorKind, IoResult };
 use std::io::net::ip::ToSocketAddr;
 use baps3_protocol::client::{ Client, Request, Response };
 use baps3_protocol::proto::Message;
@@ -28,8 +29,20 @@ macro_rules! log(
 
 /// Error type for high-level BAPS3 client errors.
 pub enum Baps3Error {
+    /// A command failed.
+    CmdFailed { advice: String },
+
+    /// A command was invalid.
+    CmdInvalid { advice: String },
+
     /// The server hung up while we were waiting for it to tell us something.
     HungUp,
+
+    /// A path somewhere was invalid.
+    InvalidPath { path: String },
+
+    /// General IO error.
+    Io { err: IoError },
 
     /// The server did not have the appropriate feature set.
     MissingFeatures { wanted: Vec<String>, have: Vec<String> },
@@ -38,12 +51,18 @@ pub enum Baps3Error {
     NotBaps3Server,
 
     /// We received a response from the server we weren't expecting.
-    UnexpectedResponse { code: String, args: Vec<String>, expectation: String }
+    UnexpectedResponse { code:        String,
+                         args:        Vec<String>,
+                         expectation: String },
 }
 
 fn baps3_err_desc(err: &Baps3Error) -> &'static str {
     match *err {
+        Baps3Error::CmdFailed          { .. } => "command failed",
+        Baps3Error::CmdInvalid         { .. } => "command invalid",
         Baps3Error::HungUp                    => "server hung up",
+        Baps3Error::InvalidPath        { .. } => "invalid path",
+        Baps3Error::Io         { err: ref e } => e.desc,
         Baps3Error::MissingFeatures    { .. } => "server missing features",
         Baps3Error::NotBaps3Server            => "not a BAPS3 server",
         Baps3Error::UnexpectedResponse { .. } => "unexpected response"
@@ -57,6 +76,10 @@ impl Error for Baps3Error {
 
     fn detail(&self) -> Option<String> {
         match *self {
+            Baps3Error::CmdFailed   { advice: ref a } => Some(a.to_owned()),
+            Baps3Error::CmdInvalid  { advice: ref a } => Some(a.to_owned()),
+            Baps3Error::InvalidPath { path:   ref p } => Some(p.to_owned()),
+            Baps3Error::Io          { err:    ref e } => e.detail.clone(),
             Baps3Error::MissingFeatures { wanted: ref w, have: ref h }
                 => Some(format!("wanted: {}, have: {}", w, h)),
             Baps3Error::UnexpectedResponse { code: ref c,
@@ -67,13 +90,32 @@ impl Error for Baps3Error {
         }
     }
 }
-impl FromError<Baps3Error> for std::io::IoError {
-    fn from_error(err: Baps3Error) -> std::io::IoError {
-        std::io::IoError {
-            kind: std::io::IoErrorKind::OtherIoError,
-            desc: baps3_err_desc(&err),
-            detail: err.detail()
+impl FromError<Baps3Error> for IoError {
+    fn from_error(err: Baps3Error) -> IoError {
+        if let Baps3Error::Io { err: e } = err {
+            e
+        } else {
+            IoError {
+                kind: IoErrorKind::OtherIoError,
+                desc: baps3_err_desc(&err),
+                detail: err.detail()
+            }
         }
+    }
+}
+impl FromError<IoError> for Baps3Error {
+    fn from_error(err: IoError) -> Baps3Error {
+        Baps3Error::Io { err: err }
+    }
+}
+impl Show for Baps3Error {
+    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+        fmt.pad(self.description())
+           .and_then(|_| if let Some(details) = self.detail() {
+            fmt.pad(": ").and_then(|_| fmt.pad(&*details))
+        } else {
+            Ok(())
+        })
     }
 }
 pub type Baps3Result<A> = Result<A, Baps3Error>;
@@ -166,47 +208,46 @@ pub fn check_features(log: &mut Logger,
          vhave ))
 }
 
-pub fn send_command(log: &mut Logger,
-                    Client{request_tx, response_rx}: Client,
-                    msg: &Message)
-  -> Baps3Result<Client> {
+pub fn send_command(log:    &mut Logger,
+                    client: &mut Client,
+                    msg:    &Message)
+  -> Baps3Result<()> {
     let word = msg.word();
     let args = msg.args();
     log!(log, "Sending command: {} {}", word, args);
 
-    request_tx.send(Request::SendMessage(msg.clone()));
+    client.request_tx.send(Request::SendMessage(msg.clone()));
 
-    'l: loop {
-        match response_rx.recv_opt() {
+    let result = wait_response(&client.response_rx, word, &*args);
+
+    if let Ok(_) = result {
+        log!(log, "success!");
+    }
+
+    result
+}
+
+fn wait_response(rx: &Receiver<Response>, word: &str, args: &[&str]) -> Baps3Result<()> {
+    loop {
+        match rx.recv_opt() {
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
                 ["OK", cword, cargs..]
-                  if cword == word && cargs == args => {
-                    log!(log, "success!");
-                    break 'l;
-                },
+                  if cword == word && cargs == args =>
+                    return Ok(()),
                 ["WHAT", advice, cword, cargs..]
-                  if cword == word && cargs == args => {
-                    werr!("command invalid: {}", advice);
-                    break 'l;
-                },
+                  if cword == word && cargs == args =>
+                    return Err(Baps3Error::CmdInvalid { advice: advice.to_owned() }),
                 ["FAIL", advice, cword, cargs..]
-                  if cword == word && cargs == args => {
-                    werr!("command failed: {}", advice);
-                    break 'l;
-                },
+                  if cword == word && cargs == args =>
+                    return Err(Baps3Error::CmdFailed { advice: advice.to_owned() }),
                 _ => ()
             },
             _ => return Err(Baps3Error::HungUp)
         }
     }
-
-    Ok(Client{
-        request_tx: request_tx,
-        response_rx: response_rx
-    })
 }
 
-pub fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
+pub fn quit_client(log: &mut Logger, Client { request_tx, .. }: Client)
   -> Baps3Result<()> {
     log!(log, "Closing client connection");
 
@@ -215,8 +256,8 @@ pub fn quit_client(log: &mut Logger, Client{request_tx, ..}: Client)
 }
 
 pub struct Baps3<'a> {
-    client: Client,
-    logger: &'a mut Logger<'a>,
+    client:   Client,
+    logger:   &'a mut Logger<'a>,
     features: Vec<String>
 }
 
@@ -238,12 +279,8 @@ impl<'a> Baps3<'a> {
 
     /// Sends a command.
     /// Blocks until the command is acknowledged.
-    pub fn send(self, msg: &Message) -> Baps3Result<Baps3<'a>> {
-        let nclient = try!(send_command(self.logger, self.client, msg));
-
-        Ok( Baps3 { client:   nclient,
-                    logger:   self.logger,
-                    features: self.features } )
+    pub fn send(&mut self, msg: &Message) -> Baps3Result<()> {
+        send_command(self.logger, &mut self.client, msg)
     }
 
     pub fn quit(self) {
@@ -264,11 +301,13 @@ impl<'a> Baps3<'a> {
 pub fn one_shot<'a, T>(log: &'a mut Logger<'a>,
                        addr: T,
                        features: &[&str],
-                       msg: Message) -> IoResult<()>
+                       msg: Message) -> Baps3Result<()>
 where T: ToSocketAddr {
-    let b3  = try!(Baps3::new(log, addr, features));
-    let b3b = try!(b3.send(&msg));
-    Ok(b3b.quit())
+    let mut b3  = try!(Baps3::new(log, addr, features));
+    let res     = b3.send(&msg);
+    b3.quit();
+
+    res
 }
 
 /// Creates a Logger from the -v/--verbose flag of a command.
