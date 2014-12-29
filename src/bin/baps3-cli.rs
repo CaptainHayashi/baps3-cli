@@ -37,10 +37,7 @@ fn main() {
             Request::SendMessage(msg) => match msg.as_str_vec().as_slice() {
                 ["!c", dest] => match Client::new(dest) {
                     Ok(client) => {
-                        let quit = client_main_loop(
-                            client,
-                            &int_request_rx,
-                        );
+                        let quit = client_main_loop(client, &int_request_rx);
                         println!("Disconnected");
 
                         if quit { break 'l };
@@ -75,21 +72,12 @@ fn stdin_loop(
     request_tx.send(Request::Quit);
 }
 
-fn send_message(
-    request_tx: &Sender<Request>,
-    unpacker: &mut Unpacker,
-    message: &str
-) {
+fn send_message(tx: &Sender<Request>, unpacker: &mut Unpacker, message: &str) {
     for pline in unpacker.feed(message.as_slice()).iter() {
         if let [ref cmd, args..] = pline.as_slice() {
-            request_tx.send(Request::SendMessage(Message::new(cmd, args)));
+            tx.send(Request::SendMessage(Message::new(cmd, args)));
         }
     }
-}
-
-fn forward(tx: Sender<Request>, word: &str, args: &[&str]) {
-    println!("> {} {}", word, args);
-    tx.send(Request::SendMessage(Message::new(word, args)));
 }
 
 struct CliClient {
@@ -97,13 +85,18 @@ struct CliClient {
     last_time: String,
 
     /// Whether to report time.
-    report_time: bool
+    report_time: bool,
+
+    /// A transmission channel for requests to the server.
+    tx: Sender<Request>
 }
+
 impl CliClient {
     /// Creates a new CliClient.
-    fn new() -> CliClient {
+    fn new(tx: &Sender<Request>) -> CliClient {
         CliClient { last_time:   "0:00".to_owned(),
-                    report_time: true }
+                    report_time: true,
+                    tx:          tx.clone() }
     }
 
     /// Toggles whether to report time.
@@ -133,6 +126,16 @@ impl CliClient {
             }
         }
     }
+
+    fn forward(&self, word: &str, args: &[&str]) {
+        println!("> {} {}", word, args);
+        self.tx.send(Request::SendMessage(Message::new(word, args)));
+    }
+
+    fn quit(&self, entire_program: bool) -> bool {
+        self.tx.send(Request::Quit);
+        entire_program
+    }
 }
 
 /// Returns true if the outer main loop must exit.
@@ -140,7 +143,7 @@ fn client_main_loop(Client {
     request_tx,
     response_rx
 }: Client, int_request_rx: &Receiver<Request>) -> bool {
-    let mut state = CliClient::new();
+    let mut state = CliClient::new(&request_tx);
 
     let sel = std::comm::Select::new();
 
@@ -156,19 +159,13 @@ fn client_main_loop(Client {
             match reqh.recv_opt() {
                 Ok(Request::SendMessage(msg)) =>
                   match msg.as_str_vec().as_slice() {
-                    ["!d"] => {
-                        request_tx.send(Request::Quit);
-                        return false;
-                    },
-                    ["!h"] => commands(),
-                    ["!q"] => {
-                        request_tx.send(Request::Quit);
-                        return true;
-                    }
-                    ["!T"] => state.toggle_time(),
-                    ["!t"] => state.report_time(),
-                    [word, args..] => forward(request_tx.clone(), word, args),
-                    [] => ()
+                    ["!d"]         => return state.quit(false),
+                    ["!h"]         => commands(),
+                    ["!q"]         => return state.quit(true),
+                    ["!t"]         => state.report_time(),
+                    ["!T"]         => state.toggle_time(),
+                    [word, args..] => state.forward(word, args),
+                    []             => ()
                 },
                 Ok(req) => request_tx.send(req),
                 Err(_) => return false
