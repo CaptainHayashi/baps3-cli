@@ -19,15 +19,16 @@ docopt!(Args deriving Show, "
 Loads a file into a BAPS3 server.
 
 Usage:
-  baps3-load [options] <file>
+  baps3-load -h
+  baps3-load [-pv] [-t <target>] <file>
 
 Options:
   -h, --help             Show this message.
   -p, --play             If set, play the file upon loading.
-  -t, --target <target>  The target BAPS3 server (host:port).
-                         [Default: localhost:1350]
   -v, --verbose          Prints a trail of miscellaneous information
                          about the action.
+  -t, --target <target>  The target BAPS3 server (host:port).
+                         [Default: localhost:1350]
 ");
 
 fn load(Args { arg_file,

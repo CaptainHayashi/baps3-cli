@@ -15,15 +15,16 @@ docopt!(Args deriving Show, "
 Stops the currently playing file in a BAPS3 server.
 
 Usage:
-  baps3-stop [options]
+  baps3-stop -h
+  baps3-stop [-rv] [-t <target>]
 
 Options:
   -h, --help             Show this message.
   -r, --rewind           Seek to the beginning of the file after stopping.
-  -t, --target <target>  The target BAPS3 server (host:port).
-                         [Default: localhost:1350]
   -v, --verbose          Prints a trail of miscellaneous information
                          about the action.
+  -t, --target <target>  The target BAPS3 server (host:port).
+                         [Default: localhost:1350]
 ");
 
 fn stop(Args { flag_rewind,

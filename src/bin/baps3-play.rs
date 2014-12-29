@@ -15,14 +15,15 @@ docopt!(Args deriving Show, "
 Plays the currently loaded file in a BAPS3 server.
 
 Usage:
-  baps3-play [options]
+  baps3-play -h
+  baps3-play [-v] [-t <target>]
 
 Options:
   -h, --help             Show this message.
-  -t, --target <target>  The target BAPS3 server (host:port).
-                         [Default: localhost:1350]
   -v, --verbose          Prints a trail of miscellaneous information
                          about the action.
+  -t, --target <target>  The target BAPS3 server (host:port).
+                         [Default: localhost:1350]
 ");
 
 fn main() {

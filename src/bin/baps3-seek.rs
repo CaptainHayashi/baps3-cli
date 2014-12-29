@@ -14,18 +14,17 @@ use baps3_cli::time::TimeUnit;
 use baps3_protocol::proto::Message;
 
 docopt!(Args deriving Show, "
-Seeks to a given position in the currently loading BAPS3 file.
+Seeks to a given position in the currently loaded BAPS3 file.
 
 By default, the position is in microseconds; use one of -H, -M, -S,
 or -m to override this.
 
 Usage:
-  baps3-seek [options] <pos>
+  baps3-seek -h
+  baps3-seek [-vHMSm] [-t <target>] <pos>
 
 Options:
   -h, --help             Show this message.
-  -t, --target <target>  The target BAPS3 server (host:port).
-                         [Default: localhost:1350]
   -v, --verbose          Prints a trail of miscellaneous information
                          about the action.
   -H, --hours            Interpret <pos> as hours.
@@ -35,6 +34,8 @@ Options:
   -S, --seconds          Interpret <pos> as seconds.
                          Overrides -m.
   -m, --milliseconds     Interpret <pos> as milliseconds.
+  -t, --target <target>  The target BAPS3 server (host:port).
+                         [Default: localhost:1350]
 ", arg_pos: u64);
 
 /// Uses the unit flags to convert `pos` to microseconds.
