@@ -1,0 +1,79 @@
+.Dd December 29, 2014
+.Dt BAPS3-SEEK 1
+.Os
+.\"
+.Sh NAME
+.Nm baps3-seek
+.Nd seeks to a given position in the currently loaded BAPS3 file
+.\"
+.Sh SYNOPSIS
+.Nm
+.Fl h
+.Nm
+.Op Fl vHMSm
+.Op Fl t Ar target
+.Ar position
+.\"
+.Sh DESCRIPTION
+.Nm
+seeks to a given position in the currently loaded BAPS3 file.
+
+By default, the
+.Ar position
+is in microseconds; use one of
+.Fl H ,
+.Fl M ,
+.Fl S ,
+or
+.Fl m
+to override this.
+The server, whose TCP address and port are supplied by
+.Ar target ,
+must support the
+.Li Seek
+BAPS3 feature.
+.Pp
+.Nm
+supports the following flags:
+.Bl -tag -width "-t target" -offset indent
+.It Fl h
+Shows usage information.
+.It Fl v
+Verbose.
+If given,
+.Nm
+will output more information about what it is doing.
+.It Fl H
+If given, interpret
+.Ar position
+as a number of hours.
+Takes precedence over the below flags.
+.It Fl M
+If given, interpret
+.Ar position
+as a number of minutes.
+Takes precedence over the below flags.
+.It Fl S
+If given, interpret
+.Ar position
+as a number of seconds.
+Takes precedence over the below flags.
+.It Fl m
+If given, interpret
+.Ar position
+as a number of milliseconds.
+.It Fl t Ar target
+Specifies the target BAPS3 server by its TCP address,
+in the format
+.Li host:port .
+Defaults to
+.Li localhost:1350 .
+.El
+.\"
+.Sh AUTHORS
+.An Matt Windsor Aq matt.windsor@ury.org.uk
+.\"
+.Sh SEE ALSO
+.Xr baps3-load 1 ,
+.Xr baps3-play 1 ,
+.Xr baps3-stop 1 .

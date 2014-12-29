@@ -1,0 +1,55 @@
+.Dd December 29, 2014
+.Dt BAPS3-STOP 1
+.Os
+.\"
+.Sh NAME
+.Nm baps3-stop
+.Nd stops the currently playing file in a BAPS3 server
+.\"
+.Sh SYNOPSIS
+.Nm
+.Fl h
+.Nm
+.Op Fl rv
+.Op Fl t Ar target
+.\"
+.Sh DESCRIPTION
+.Nm
+stops the currently playing file in a BAPS3 server.
+The server, whose TCP address and port are supplied by
+.Ar target ,
+must support the
+.Li PlayStop
+BAPS3 feature.
+.Pp
+.Nm
+supports the following flags:
+.Bl -tag -width "-t target" -offset indent
+.It Fl h
+Shows usage information.
+.It Fl r
+Rewind.
+If given, the server is instructed to seek back to the beginning of the file
+upon stopping playback.  Requires server support for the
+.Li Seek
+BAPS3 feature.
+.It Fl v
+Verbose.
+If given,
+.Nm
+will output more information about what it is doing.
+.It Fl t Ar target
+Specifies the target BAPS3 server by its TCP address,
+in the format
+.Li host:port .
+Defaults to
+.Li localhost:1350 .
+.El
+.\"
+.Sh AUTHORS
+.An Matt Windsor Aq matt.windsor@ury.org.uk
+.\"
+.Sh SEE ALSO
+.Xr baps3-load 1 ,
+.Xr baps3-play 1 ,
+.Xr baps3-seek 1 .

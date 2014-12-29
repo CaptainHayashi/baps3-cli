@@ -1,0 +1,49 @@
+.Dd December 29, 2014
+.Dt BAPS3-PLAY 1
+.Os
+.\"
+.Sh NAME
+.Nm baps3-play
+.Nd plays the currently loaded file in a BAPS3 server
+.\"
+.Sh SYNOPSIS
+.Nm
+.Fl h
+.Nm
+.Op Fl rv
+.Op Fl t Ar target
+.\"
+.Sh DESCRIPTION
+.Nm
+plays the currently loaded file in a BAPS3 server.
+The server, whose TCP address and port are supplied by
+.Ar target ,
+must support the
+.Li PlayStop
+BAPS3 feature.
+.Pp
+.Nm
+supports the following flags:
+.Bl -tag -width "-t target" -offset indent
+.It Fl h
+Shows usage information.
+.It Fl v
+Verbose.
+If given,
+.Nm
+will output more information about what it is doing.
+.It Fl t Ar target
+Specifies the target BAPS3 server by its TCP address,
+in the format
+.Li host:port .
+Defaults to
+.Li localhost:1350 .
+.El
+.\"
+.Sh AUTHORS
+.An Matt Windsor Aq matt.windsor@ury.org.uk
+.\"
+.Sh SEE ALSO
+.Xr baps3-load 1 ,
+.Xr baps3-seek 1 ,
+.Xr baps3-stop 1 .

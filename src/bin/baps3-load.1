@@ -1,0 +1,61 @@
+.Dd December 29, 2014
+.Dt BAPS3-LOAD 1
+.Os
+.\"
+.Sh NAME
+.Nm baps3-load
+.Nd loads a file into a BAPS3 server
+.\"
+.Sh SYNOPSIS
+.Nm
+.Fl h
+.Nm
+.Op Fl pv
+.Op Fl t Ar target
+.Ar path
+.\"
+.Sh DESCRIPTION
+.Nm
+loads a file into a BAPS3 server.
+The file is given by a
+.Ar path ,
+which may be relative if the BAPS3 server resides on this machine.
+.Nm
+automagically extends relative paths to be absolute before sending them to
+the server.
+The server, whose TCP address and port are supplied by
+.Ar target ,
+must support the
+.Li FileLoad
+BAPS3 feature.
+.Pp
+.Nm
+supports the following flags:
+.Bl -tag -width "-t target" -offset indent
+.It Fl h
+Shows usage information.
+.It Fl p
+If given, set the file to play immediately after loading.
+Requires server support for the
+.Li PlayStop
+BAPS3 feature.
+.It Fl v
+Verbose.
+If given,
+.Nm
+will output more information about what it is doing.
+.It Fl t Ar target
+Specifies the target BAPS3 server by its TCP address,
+in the format
+.Li host:port .
+Defaults to
+.Li localhost:1350 .
+.El
+.\"
+.Sh AUTHORS
+.An Matt Windsor Aq matt.windsor@ury.org.uk
+.\"
+.Sh SEE ALSO
+.Xr baps3-play 1 ,
+.Xr baps3-seek 1 ,
+.Xr baps3-stop 1 .
