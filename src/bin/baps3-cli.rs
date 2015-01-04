@@ -156,7 +156,7 @@ fn client_main_loop(Client {
     loop {
         let id = sel.wait();
         if id == reqh.id() {
-            match reqh.recv_opt() {
+            match reqh.recv() {
                 Ok(Request::SendMessage(msg)) =>
                   match msg.as_str_vec().as_slice() {
                     ["!d"]         => return state.quit(false),
@@ -171,7 +171,7 @@ fn client_main_loop(Client {
                 Err(_) => return false
             }
         } else {
-            match resh.recv_opt() {
+            match resh.recv() {
                 Ok(Response::Gone) => return false,
                 Ok(Response::ClientError(e)) => {
                     println!("! {}", e);

@@ -5,7 +5,7 @@ version = "0.0.1"
 authors = ["Matt Windsor <matt.windsor@ury.org.uk>"]
 
 [dependencies]
-rustc-serialize = "0.1.5"
+rustc-serialize = "0.2.3"
 
 [dependencies.baps3_protocol]
 git = "https://github.com/UniversityRadioYork/baps3-protocol.rs.git"

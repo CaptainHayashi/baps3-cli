@@ -124,7 +124,7 @@ pub fn check_baps3(log: &mut Logger,
                    Client{request_tx, response_rx}: Client)
   -> Baps3Result<Client> {
     'l: loop {
-        match response_rx.recv_opt() {
+        match response_rx.recv() {
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
                 ["OHAI", ident] => {
                     log!(log, "Server ident: {}", ident);
@@ -175,7 +175,7 @@ pub fn check_features(log: &mut Logger,
     let mut vhave : Vec<String> = vec![];
 
     'l: loop {
-        match response_rx.recv_opt() {
+        match response_rx.recv() {
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
                 ["FEATURES", have..] => {
                     log!(log, "Server features: {}", have);
@@ -229,7 +229,7 @@ pub fn send_command(log:    &mut Logger,
 
 fn wait_response(rx: &Receiver<Response>, word: &str, args: &[&str]) -> Baps3Result<()> {
     loop {
-        match rx.recv_opt() {
+        match rx.recv() {
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
                 ["OK", cword, cargs..]
                   if cword == word && cargs == args =>

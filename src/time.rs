@@ -8,7 +8,7 @@
 ///
 /// Each unit specified in terms of its equivalent in microseconds, which is
 /// the unit used 'over the wire' when talking to BAPS3.
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum TimeUnit {
     /// Hours (1 hour = 60 minutes)
     Hours,

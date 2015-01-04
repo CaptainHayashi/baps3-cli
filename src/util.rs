@@ -1,5 +1,7 @@
 #![macro_escape]
 
+use std::iter::{ FromIterator, Iterator };
+
 #[macro_export]
 macro_rules! werr(
     ($($arg:tt)*) => (
@@ -39,9 +41,9 @@ pub fn unslicify<'a, Sized? S: Sized+Str>(slices: &'a[S]) -> Vec<String> {
 }
 
 /// Performs a map and collects the results.
-pub fn map_collect<A, B, I, F, C>(iter: I, f: C) -> F
-  where I: Iterator<A>,
+pub fn map_collect<B, I, F, C>(iter: I, f: C) -> F
+  where I: Iterator,
         F: FromIterator<B>,
-        C: FnMut(A) -> B {
+        C: FnMut(<I as Iterator>::Item) -> B {
     iter.map(f).collect::<F>()
 }
