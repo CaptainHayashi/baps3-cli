@@ -1,19 +1,17 @@
-#![feature(phase)]
-#![feature(unboxed_closures)]
+#![feature(plugin)]
 
 extern crate baps3_protocol;
-extern crate baps3_cli;
-#[phase(plugin)] extern crate baps3_cli;
+#[macro_use] extern crate baps3_cli;
 
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[plugin] #[no_link] extern crate docopt_macros;
 
-use baps3_cli::{Logger, one_shot, verbose_logger};
+use baps3_cli::{one_shot, verbose_logger};
 use baps3_cli::time::TimeUnit;
 use baps3_protocol::proto::Message;
 
-docopt!(Args deriving Show, "
+docopt!(Args, "
 Seeks to a given position in the currently loaded BAPS3 file.
 
 By default, the position is in microseconds; use one of -H, -M, -S,
@@ -39,7 +37,8 @@ Options:
 ", arg_pos: u64);
 
 /// Uses the unit flags to convert `pos` to microseconds.
-fn pos_to_micros(log: &mut Logger, pos: u64, h: bool, m: bool, s: bool, ms: bool)
+fn pos_to_micros<L: Fn(&str)>(log: &L,
+                              pos: u64, h: bool, m: bool, s: bool, ms: bool)
   -> u64 {
     let unit   = TimeUnit::from_flags(h, m, s, ms);
     let suffix = unit.suffix();
@@ -51,9 +50,9 @@ fn pos_to_micros(log: &mut Logger, pos: u64, h: bool, m: bool, s: bool, ms: bool
 
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-    let mut log = verbose_logger(args.flag_verbose);
+    let log = |&:s:&str| verbose_logger(args.flag_verbose, s);
 
-    let pos = pos_to_micros(&mut log,
+    let pos = pos_to_micros(&log,
                             args.arg_pos,
                             args.flag_hours,
                             args.flag_minutes,
@@ -61,7 +60,7 @@ fn main() {
                             args.flag_milliseconds);
     let spos = pos.to_string();
 
-    one_shot(&mut log,
+    one_shot(log,
              &*args.flag_target,
              &["Seek"],
              Message::new("seek", &[&*spos]))

@@ -1,14 +1,16 @@
-#![feature(phase)]
+#![feature(plugin)]
 
 extern crate baps3_protocol;
 extern crate libc;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[plugin] #[no_link] extern crate docopt_macros;
 
 use std::borrow::ToOwned;
+use std::sync::mpsc::{ channel, Receiver, Select, Sender };
 
 use baps3_protocol::client::{Client, Request, Response};
 use baps3_protocol::proto::{Unpacker, Message};
+use baps3_protocol::util::slicify;
 
 fn commands() {
     println!("Commands: ");
@@ -25,8 +27,7 @@ fn commands() {
 fn main() {
     let (int_request_tx, int_request_rx) = channel();
 
-    std::thread::Thread::spawn(move || { stdin_loop(int_request_tx)})
-                        .detach();
+    std::thread::Thread::spawn(move || { stdin_loop(int_request_tx)});
 
     println!("Currently disconnected.");
     println!("Type !h <newline> for command help");
@@ -75,7 +76,8 @@ fn stdin_loop(
 fn send_message(tx: &Sender<Request>, unpacker: &mut Unpacker, message: &str) {
     for pline in unpacker.feed(message.as_slice()).iter() {
         if let [ref cmd, args..] = pline.as_slice() {
-            tx.send(Request::SendMessage(Message::new(cmd, args)));
+            let aslices = slicify(args);
+            tx.send(Request::SendMessage(Message::new(&**cmd, &*aslices)));
         }
     }
 }
@@ -128,7 +130,7 @@ impl CliClient {
     }
 
     fn forward(&self, word: &str, args: &[&str]) {
-        println!("> {} {}", word, args);
+        println!("> {} {:?}", word, args);
         self.tx.send(Request::SendMessage(Message::new(word, args)));
     }
 
@@ -145,7 +147,7 @@ fn client_main_loop(Client {
 }: Client, int_request_rx: &Receiver<Request>) -> bool {
     let mut state = CliClient::new(&request_tx);
 
-    let sel = std::comm::Select::new();
+    let sel = Select::new();
 
     let mut reqh = sel.handle(int_request_rx);
     unsafe { reqh.add(); }
@@ -167,7 +169,10 @@ fn client_main_loop(Client {
                     [word, args..] => state.forward(word, args),
                     []             => ()
                 },
-                Ok(req) => request_tx.send(req),
+                Ok(req) => if let Err(_) = request_tx.send(req) {
+                    // The client has disappeared, so disconnect.
+                    return false;
+                },
                 Err(_) => return false
             }
         } else {
@@ -179,7 +184,7 @@ fn client_main_loop(Client {
                 },
                 Ok(Response::Message(m)) => match &*m.as_str_vec() {
                     [ "TIME", t ] => state.time(t),
-                    [ word, args.. ] => println!("< {} {}", word, args),
+                    [ word, args.. ] => println!("< {} {:?}", word, args),
                     [] => ()
                 },
                 Err(_) => {

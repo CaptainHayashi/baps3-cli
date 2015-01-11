@@ -1,17 +1,16 @@
-#![feature(phase)]
+#![feature(plugin)]
 
 extern crate baps3_protocol;
-extern crate baps3_cli;
-#[phase(plugin)] extern crate baps3_cli;
+#[macro_use] extern crate baps3_cli;
 
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[plugin] #[no_link] extern crate docopt_macros;
 
 use baps3_cli::{one_shot, verbose_logger};
 use baps3_protocol::proto::Message;
 
-docopt!(Args deriving Show, "
+docopt!(Args, "
 Plays the currently loaded file in a BAPS3 server.
 
 Usage:
@@ -28,9 +27,9 @@ Options:
 
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-    let mut log = verbose_logger(args.flag_verbose);
+    let log = |&:s:&str| verbose_logger(args.flag_verbose, s);
 
-    one_shot(&mut log,
+    one_shot(log,
              &*args.flag_target,
              &["PlayStop"],
              Message::from_word("play"))

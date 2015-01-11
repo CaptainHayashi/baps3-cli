@@ -5,10 +5,8 @@ version = "0.0.1"
 authors = ["Matt Windsor <matt.windsor@ury.org.uk>"]
 
 [dependencies]
-rustc-serialize = "0.2.3"
+docopt = "0.6.30"
+docopt_macros = "0.6.30"
 
 [dependencies.baps3_protocol]
 git = "https://github.com/UniversityRadioYork/baps3-protocol.rs.git"
-
-[dependencies.docopt_macros]
-git = "git://github.com/docopt/docopt.rs"

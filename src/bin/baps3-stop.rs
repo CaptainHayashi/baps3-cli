@@ -1,17 +1,16 @@
-#![feature(phase)]
+#![feature(plugin)]
 
 extern crate baps3_protocol;
-extern crate baps3_cli;
-#[phase(plugin)] extern crate baps3_cli;
+#[macro_use] extern crate baps3_cli;
 
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[plugin] #[no_link] extern crate docopt_macros;
 
 use baps3_cli::{ Baps3, Baps3Result, verbose_logger };
 use baps3_protocol::proto::Message;
 
-docopt!(Args deriving Show, "
+docopt!(Args, "
 Stops the currently playing file in a BAPS3 server.
 
 Usage:
@@ -30,9 +29,9 @@ Options:
 fn stop(Args { flag_rewind,
                flag_target,
                flag_verbose, .. }: Args) -> Baps3Result<()> {
-    let mut log   = verbose_logger(flag_verbose);
+    let mut log   = |&:s:&str| verbose_logger(flag_verbose, s);
 
-    let mut baps3 = try!(Baps3::new(&mut log, &*flag_target,
+    let mut baps3 = try!(Baps3::new(log, &*flag_target,
         &*(if flag_rewind { vec!["PlayStop", "Seek"] }
            else           { vec!["PlayStop"]         })));
 

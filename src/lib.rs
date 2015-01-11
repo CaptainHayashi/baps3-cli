@@ -1,29 +1,28 @@
 //! Support library for BAPS3 command-line interfaces.
-#![feature(phase)]
-#![feature(macro_rules)]
 #![feature(unboxed_closures)]
 
 extern crate baps3_protocol;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[macro_use] extern crate docopt_macros;
 
 use std::borrow::ToOwned;
 use std::error::{ Error, FromError };
-use std::fmt::{ Show, Formatter };
+use std::fmt;
 use std::io::{ IoError, IoErrorKind, IoResult };
 use std::io::net::ip::ToSocketAddr;
+use std::sync::mpsc::{ Receiver, RecvError, SendError };
+
 use baps3_protocol::client::{ Client, Request, Response };
 use baps3_protocol::proto::Message;
-use util::unslicify;
+use baps3_protocol::util::unslicify;
 
 pub mod util;
 pub mod time;
 
-pub type Logger<'a> = |&str|:'a;
 #[macro_export]
 macro_rules! log(
     ($l:ident, $($arg:tt)*) => (
-        let _ = (*$l)(&*format!($($arg)*));
+        let _ = ($l)(&*format!($($arg)*));
     )
 );
 
@@ -81,26 +80,23 @@ impl Error for Baps3Error {
             Baps3Error::InvalidPath { path:   ref p } => Some(p.to_owned()),
             Baps3Error::Io          { err:    ref e } => e.detail.clone(),
             Baps3Error::MissingFeatures { wanted: ref w, have: ref h }
-                => Some(format!("wanted: {}, have: {}", w, h)),
+                => Some(format!("wanted: {:?}, have: {:?}", w, h)),
             Baps3Error::UnexpectedResponse { code: ref c,
                                              args: ref a,
                                              expectation: ref e }
-                => Some(format!("code: {}, args: {}; expected {}", c, a, e)),
+                => Some(format!("code: {:?}, args: {:?}; expected {:?}", c, a, e)),
             _ => None
         }
     }
 }
-impl FromError<Baps3Error> for IoError {
-    fn from_error(err: Baps3Error) -> IoError {
-        if let Baps3Error::Io { err: e } = err {
-            e
-        } else {
-            IoError {
-                kind: IoErrorKind::OtherIoError,
-                desc: baps3_err_desc(&err),
-                detail: err.detail()
-            }
-        }
+impl FromError<SendError<Request>> for Baps3Error {
+    fn from_error(_: SendError<Request>) -> Baps3Error {
+        Baps3Error::HungUp
+    }
+}
+impl FromError<RecvError> for Baps3Error {
+    fn from_error(_: RecvError) -> Baps3Error {
+        Baps3Error::HungUp
     }
 }
 impl FromError<IoError> for Baps3Error {
@@ -108,8 +104,8 @@ impl FromError<IoError> for Baps3Error {
         Baps3Error::Io { err: err }
     }
 }
-impl Show for Baps3Error {
-    fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
+impl std::fmt::String for Baps3Error {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         fmt.pad(self.description())
            .and_then(|_| if let Some(details) = self.detail() {
             fmt.pad(": ").and_then(|_| fmt.pad(&*details))
@@ -120,9 +116,8 @@ impl Show for Baps3Error {
 }
 pub type Baps3Result<A> = Result<A, Baps3Error>;
 
-pub fn check_baps3(log: &mut Logger,
-                   Client{request_tx, response_rx}: Client)
-  -> Baps3Result<Client> {
+pub fn check_baps3<L: Fn(&str)>
+  (log: &L, Client{request_tx, response_rx}: Client) -> Baps3Result<Client> {
     'l: loop {
         match response_rx.recv() {
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
@@ -168,9 +163,9 @@ pub fn missing_features(needed: &[&str], have: &[&str]) -> bool {
     needed.iter().any(|n| !have.contains(n))
 }
 
-pub fn check_features(log: &mut Logger,
-                      needed: &[&str],
-                      Client{request_tx, response_rx}: Client)
+pub fn check_features<L: Fn(&str)>(log: &L,
+                                   needed: &[&str],
+                                   Client{request_tx, response_rx}: Client)
   -> Baps3Result<(Client, Vec<String>)> {
     let mut vhave : Vec<String> = vec![];
 
@@ -178,7 +173,7 @@ pub fn check_features(log: &mut Logger,
         match response_rx.recv() {
             Ok(Response::Message(msg)) => match msg.as_str_vec().as_slice() {
                 ["FEATURES", have..] => {
-                    log!(log, "Server features: {}", have);
+                    log!(log, "Server features: {:?}", have);
                     if missing_features(needed, have) {
                         return Err(Baps3Error::MissingFeatures {
                             wanted: unslicify(needed),
@@ -208,15 +203,13 @@ pub fn check_features(log: &mut Logger,
          vhave ))
 }
 
-pub fn send_command(log:    &mut Logger,
-                    client: &mut Client,
-                    msg:    &Message)
+pub fn send_command<L: Fn(&str)>(log: &L, client: &mut Client, msg: &Message)
   -> Baps3Result<()> {
     let word = msg.word();
     let args = msg.args();
-    log!(log, "Sending command: {} {}", word, args);
+    log!(log, "Sending command: {} {:?}", word, args);
 
-    client.request_tx.send(Request::SendMessage(msg.clone()));
+    try!(client.request_tx.send(Request::SendMessage(msg.clone())));
 
     let result = wait_response(&client.response_rx, word, &*args);
 
@@ -247,29 +240,31 @@ fn wait_response(rx: &Receiver<Response>, word: &str, args: &[&str]) -> Baps3Res
     }
 }
 
-pub fn quit_client(log: &mut Logger, Client { request_tx, .. }: Client)
+pub fn quit_client<L: Fn(&str)>(log: &L, Client { request_tx, .. }: Client)
   -> Baps3Result<()> {
     log!(log, "Closing client connection");
 
-    request_tx.send(Request::Quit);
+    // It doesn't matter if the client has already quit.
+    let _ = request_tx.send(Request::Quit);
+
     Ok(())
 }
 
-pub struct Baps3<'a> {
+pub struct Baps3<L: Fn(&str)> {
     client:   Client,
-    logger:   &'a mut Logger<'a>,
+    logger:   L,
     features: Vec<String>
 }
 
-impl<'a> Baps3<'a> {
+impl<L: Fn(&str)> Baps3<L> {
     /// Constructs a new Baps3.
-    pub fn new<T>(logger:   &'a mut Logger<'a>,
+    pub fn new<T>(logger:   L,
                   addr:     T,
-                  features: &[&str]) -> IoResult<Baps3<'a>>
+                  features: &[&str]) -> Baps3Result<Baps3<L>>
     where T: ToSocketAddr {
         let ( client, all_features ) = try!(
-            check_baps3(logger, try!(Client::new(addr)))
-              .and_then(|c| check_features(logger, features, c))
+            check_baps3(&logger, try!(Client::new(addr)))
+              .and_then(|c| check_features(&logger, features, c))
         );
 
         Ok( Baps3 { client:   client,
@@ -280,11 +275,12 @@ impl<'a> Baps3<'a> {
     /// Sends a command.
     /// Blocks until the command is acknowledged.
     pub fn send(&mut self, msg: &Message) -> Baps3Result<()> {
-        send_command(self.logger, &mut self.client, msg)
+        send_command(&self.logger, &mut self.client, msg)
     }
 
     pub fn quit(self) {
-        self.client.request_tx.send(Request::Quit);
+        // It doesn't matter if the client has already quit.
+        let _ = self.client.request_tx.send(Request::Quit);
     }
 }
 
@@ -298,11 +294,12 @@ impl<'a> Baps3<'a> {
 ///   - Sends the message `msg`;
 ///   - Reads until the server sends an OKAY, FAIL, or WHAT response for that
 ///     command.
-pub fn one_shot<'a, T>(log: &'a mut Logger<'a>,
-                       addr: T,
-                       features: &[&str],
-                       msg: Message) -> Baps3Result<()>
-where T: ToSocketAddr {
+pub fn one_shot<L, T>(log: L,
+                      addr: T,
+                      features: &[&str],
+                      msg: Message) -> Baps3Result<()>
+where L: Fn(&str),
+      T: ToSocketAddr {
     let mut b3  = try!(Baps3::new(log, addr, features));
     let res     = b3.send(&msg);
     b3.quit();
@@ -314,7 +311,6 @@ where T: ToSocketAddr {
 ///
 /// If verbose is on (-v/--verbose == true), we dump log messages to stderr,
 /// else we ignore them.
-pub fn verbose_logger<'a>(verbose: bool) -> Logger<'a> {
-    if verbose { |s: &str| { let _ = std::io::stderr().write_line(s); } }
-    else       { |_| {} }
+pub fn verbose_logger(verbose: bool, s: &str) {
+    if verbose { let _ = std::io::stderr().write_line(s); }
 }

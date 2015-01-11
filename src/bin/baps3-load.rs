@@ -1,12 +1,11 @@
-#![feature(phase)]
+#![feature(plugin)]
 
 extern crate baps3_protocol;
-extern crate baps3_cli;
-#[phase(plugin)] extern crate baps3_cli;
+#[macro_use] extern crate baps3_cli;
 
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate docopt;
-#[phase(plugin)] extern crate docopt_macros;
+#[plugin] #[no_link] extern crate docopt_macros;
 
 use std::borrow::ToOwned;
 use std::os;
@@ -15,7 +14,7 @@ use std::path;
 use baps3_cli::{ Baps3, Baps3Error, Baps3Result, verbose_logger };
 use baps3_protocol::proto::Message;
 
-docopt!(Args deriving Show, "
+docopt!(Args, "
 Loads a file into a BAPS3 server.
 
 Usage:
@@ -36,8 +35,8 @@ fn load(Args { arg_file,
                flag_target,
                flag_verbose, .. }: Args) -> Baps3Result<()> {
     let ap        = try!(to_absolute_path_str(&*arg_file));
-    let mut log   = verbose_logger(flag_verbose);
-    let mut baps3 = try!(Baps3::new(&mut log, &*flag_target,
+    let log       = |&:s:&str| verbose_logger(flag_verbose, s);
+    let mut baps3 = try!(Baps3::new(log, &*flag_target,
         &*(if flag_play { vec!["FileLoad", "PlayStop"] }
            else         { vec!["FileLoad"]             })));
 
@@ -55,15 +54,15 @@ fn to_absolute_path_str(rel: &str) -> Baps3Result<String> {
     // This is a convoluted, entangled mess of Results and Options.
     // I sincerely apologise.
 
-    let badpath = || Baps3Error::InvalidPath { path: rel.to_owned() };
+    let badpath = |&:| Baps3Error::InvalidPath { path: rel.to_owned() };
 
     path::Path::new_opt(rel)
       .ok_or(badpath())
-      .and_then(|p| os::make_absolute(&p).map_err(|_| badpath()))
-      .and_then(|ap| ap.as_str().map(|s| s.to_string()).ok_or(badpath()))
+      .and_then(|&:p| os::make_absolute(&p).map_err(|_| badpath()))
+      .and_then(|&:ap| ap.as_str().map(|&:s| s.to_string()).ok_or(badpath()))
 }
 
 fn main() {
     let args: Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
-    load(args).unwrap_or_else(|e| werr!("error: {}", e));
+    load(args).unwrap_or_else(|&:e| werr!("error: {}", e));
 }
