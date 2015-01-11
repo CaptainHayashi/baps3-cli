@@ -63,6 +63,6 @@ fn main() {
     one_shot(log,
              &*args.flag_target,
              &["Seek"],
-             Message::new("seek", &[&*spos]))
+             Message::new("seek").arg(&*spos))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }

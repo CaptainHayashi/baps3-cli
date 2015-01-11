@@ -76,8 +76,11 @@ fn stdin_loop(
 fn send_message(tx: &Sender<Request>, unpacker: &mut Unpacker, message: &str) {
     for pline in unpacker.feed(message.as_slice()).iter() {
         if let [ref cmd, args..] = pline.as_slice() {
-            let aslices = slicify(args);
-            tx.send(Request::SendMessage(Message::new(&**cmd, &*aslices)));
+            let mut msg = Message::new(&**cmd);
+            for arg in args.iter() {
+                msg = msg.arg(&**arg);
+            }
+            tx.send(Request::SendMessage(msg));
         }
     }
 }
@@ -131,7 +134,13 @@ impl CliClient {
 
     fn forward(&self, word: &str, args: &[&str]) {
         println!("> {} {:?}", word, args);
-        self.tx.send(Request::SendMessage(Message::new(word, args)));
+
+        let mut msg = Message::new(word);
+        for arg in args.iter() {
+            msg = msg.arg(*arg)
+        }
+
+        self.tx.send(Request::SendMessage(msg));
     }
 
     fn quit(&self, entire_program: bool) -> bool {

@@ -35,10 +35,10 @@ fn stop(Args { flag_rewind,
         &*(if flag_rewind { vec!["PlayStop", "Seek"] }
            else           { vec!["PlayStop"]         })));
 
-    try!(baps3.send(&Message::from_word("stop")));
+    try!(baps3.send(&Message::new("stop")));
 
     if flag_rewind {
-        try!(baps3.send(&Message::new("seek", &["0"])));
+        try!(baps3.send(&Message::new("seek").arg("0")));
     }
 
     Ok(())

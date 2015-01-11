@@ -2,15 +2,15 @@
 name = "baps3_cli"
 version = "0.0.1"
 dependencies = [
- "baps3_protocol 0.3.0 (git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git)",
+ "baps3_protocol 0.4.0 (git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git)",
  "docopt 0.6.30 (registry+https://github.com/rust-lang/crates.io-index)",
  "docopt_macros 0.6.30 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "baps3_protocol"
-version = "0.3.0"
-source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#aaed8bfb94bee5a92b08af9dcbea3cd09379474c"
+version = "0.4.0"
+source = "git+https://github.com/UniversityRadioYork/baps3-protocol.rs.git#7a1ab3e28e83f65b9d577776e5d3d738839976be"
 
 [[package]]
 name = "docopt"

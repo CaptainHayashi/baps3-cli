@@ -32,6 +32,6 @@ fn main() {
     one_shot(log,
              &*args.flag_target,
              &["PlayStop"],
-             Message::from_word("play"))
+             Message::new("play"))
       .unwrap_or_else(|e| werr!("error: {}", e));
 }

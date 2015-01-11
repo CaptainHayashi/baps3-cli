@@ -40,10 +40,10 @@ fn load(Args { arg_file,
         &*(if flag_play { vec!["FileLoad", "PlayStop"] }
            else         { vec!["FileLoad"]             })));
 
-    try!(baps3.send(&Message::new("load", &[&*ap])));
+    try!(baps3.send(&Message::new("load").arg(&*ap)));
 
     if flag_play {
-        try!(baps3.send(&Message::from_word("play")));
+        try!(baps3.send(&Message::new("play")));
     }
 
     Ok(())
